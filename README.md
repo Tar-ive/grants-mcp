@@ -13,7 +13,6 @@ The Model Context Protocol (MCP) is a system that lets AI apps, like Claude Desk
 The Exa MCP server:
 - Enables AI assistants to perform web searches using Exa's powerful search API
 - Provides structured search results including titles, URLs, and content snippets
-- Maintains a history of searches as accessible resources
 - Handles rate limiting and error cases gracefully
 
 
@@ -37,7 +36,7 @@ node --version  # Should show v18.0.0 or higher
     
 
 ```
-git clone https://github.com/theishangoswami/exa-mcp-server.git
+git clone https://github.com/exa-labs/exa-mcp-server.git
 cd exa-mcp-server
 ```
 
