@@ -2,6 +2,9 @@
 
 This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
 
+# Video Introduction
+![Video Introduction](grants-mcp/mcp-grants.mp4)
+
 ## Overview
 
 The Grants Search MCP Server is built using the `@modelcontextprotocol/sdk` package. It exposes a single tool called "search-grants" that allows users to search for available government grants based on a search query.
