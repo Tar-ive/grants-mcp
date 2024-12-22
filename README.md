@@ -11,6 +11,10 @@ The Grants Search MCP Server is built using the `@modelcontextprotocol/sdk` pack
 
 The server interacts with the Simpler Grants API to fetch the grant data and formats the results for display.
 
+The MCP retrieves data from the [Simpler Grants API](https://api.simpler.grants.gov/openapi.json), which provides a comprehensive set of endpoints for accessing information about government grants. This API is currently in its alpha version, primarily intended for testing and feedback. It includes features such as searching for opportunities, retrieving agency information, and accessing detailed grant data, all structured in a user-friendly format.
+
+The API supports various filters for searching grants, including agency, applicant type, funding category, and more. It also provides pagination options to manage large sets of results effectively.
+
 ## Features
 
 - Search for government grants by keyword
