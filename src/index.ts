@@ -2,373 +2,247 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  Tool,
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ErrorCode,
-  McpError
-} from "@modelcontextprotocol/sdk/types.js";
-import * as ExaModule from "exa-js";
-import dotenv from "dotenv";
-import chalk from 'chalk';
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import axios from 'axios';
 
-const Exa = ExaModule.default || ExaModule;
-dotenv.config();
+const API_KEY = process.env.API_KEY;
 
-const API_KEY = process.env.EXA_API_KEY;
-if (!API_KEY) {
-  throw new Error("EXA_API_KEY environment variable is required");
-}
-
-interface CachedSearch {
-  query: string;
-  response: any;
-  timestamp: string;
+// Update interface to match actual API response
+interface Grant {
+  agency: string;
+  agency_code: string;
+  agency_name: string;
+  opportunity_id: number;
+  opportunity_number: string;
+  opportunity_title: string;
+  opportunity_status: string;
+  summary: {
+    award_ceiling?: number;
+    award_floor?: number;
+    post_date?: string;
+    close_date?: string;
+    summary_description?: string;
+    additional_info_url?: string;
+    agency_contact_description?: string;
+    agency_email_address?: string;
+    agency_phone_number?: string;
+    applicant_eligibility_description?: string;
+  };
   category: string;
+  top_level_agency_name?: string;
 }
 
-interface SearchArguments {
-  query: string;
-  category?: 'research' | 'news' | 'both';
-  numResults?: number;
-  includeContent?: boolean;
-  highlightResults?: boolean;
-}
-
-interface ExaResult {
-  title: string;
-  url: string;
-  score: number;
-  content?: {
-    text?: string;
-    highlights?: string[];
+interface GrantsAPIResponse {
+  data: Grant[];
+  pagination_info: {
+    total_records: number;
+  };
+  facet_counts: {
+    agency: Record<string, number>;
   };
 }
 
-interface ExaResponse {
-  results?: ExaResult[];
-  totalResults?: number;
-}
-
-interface FormattedResult {
-  title: string;
-  url: string;
-  source: string;
-  relevance_score: number;
-  highlights: string[];
-  summary: string;
-}
-
-interface FormattedResults {
-  research_papers: {
-    results: FormattedResult[];
-    total_found: number;
-  };
-  news_articles: {
-    results: FormattedResult[];
-    total_found: number;
-  };
-  query_info: {
-    query: string;
-    timestamp: string;
-    results_per_category: number;
-  };
-}
-
-interface SearchResult {
-  title: string;
-  url: string;
-  score: number;
-  content?: {
-    text?: string;
-    highlights?: string[];
-  };
-}
-
-const EXA_SEARCH_TOOL: Tool = {
-  name: "search",
-  description: `A powerful search tool using Exa's neural search API for comprehensive research and news discovery.
-
-When to use this tool:
-- Researching academic topics with scholarly papers
-- Finding recent news on specific topics
-- Gathering information from multiple reliable sources
-- Cross-referencing information across different types of content
-- Deep diving into specific research areas
-- Fact-checking against reliable sources
-- Exploring recent developments in any field
-
-Key features:
-- Neural search for better semantic understanding
-- Separate research paper and news categories
-- Automatic content highlighting
-- Source credibility ranking
-- Relevance scoring
-- Support for various content types
-
-Search categories:
-1. Research Papers:
-   - Academic publications
-   - Scientific journals
-   - Technical documents
-   - Conference proceedings
-   - Preprints and archives
-
-2. News:
-   - Current events
-   - Industry news
-   - Technology updates
-   - Company announcements
-   - Expert analysis
-
-Best practices:
-1. Use specific, focused queries
-2. Include relevant technical terms
-3. Consider time relevance
-4. Use boolean operators when needed
-5. Start broad, then refine
-6. Cross-reference multiple sources
-7. Verify information accuracy
-
-Parameters explained:
-- query: Your search query string
-- category: Type of content to search ("research" or "news")
-- numResults: Number of results to return (1-50)
-- includeContent: Whether to include full text content
-- highlightResults: Whether to include relevant text highlights`,
-  inputSchema: {
-    type: "object",
-    properties: {
-      query: {
-        type: "string",
-        description: "Search query"
-      },
-      category: {
-        type: "string",
-        enum: ["research", "news", "both"],
-        description: "Type of content to search",
-        default: "both"
-      },
-      numResults: {
-        type: "number",
-        description: "Number of results (1-50)",
-        minimum: 1,
-        maximum: 50,
-        default: 10
-      },
-      includeContent: {
-        type: "boolean",
-        description: "Include full text content",
-        default: false
-      },
-      highlightResults: {
-        type: "boolean",
-        description: "Include relevant text highlights",
-        default: true
-      }
-    },
-    required: ["query"]
+const server = new Server({
+  name: "exa",
+  version: "1.0.0"
+}, {
+  capabilities: {
+    tools: {}
   }
+});
+
+const formatGrantDetails = (grant: Grant) => {
+  return `
+OPPORTUNITY DETAILS
+------------------
+Title: ${grant.opportunity_title}
+Opportunity Number: ${grant.opportunity_number}
+Agency: ${grant.agency_name} (${grant.agency_code})
+Status: ${grant.opportunity_status}
+
+FUNDING INFORMATION
+------------------
+Award Floor: ${grant.summary.award_floor ? `$${grant.summary.award_floor.toLocaleString()}` : 'Not specified'}
+Award Ceiling: ${grant.summary.award_ceiling ? `$${grant.summary.award_ceiling.toLocaleString()}` : 'Not specified'}
+Category: ${grant.category}
+
+DATES AND DEADLINES
+------------------
+Posted Date: ${grant.summary.post_date || 'N/A'}
+Close Date: ${grant.summary.close_date || 'N/A'}
+
+CONTACT INFORMATION
+------------------
+Agency Contact: ${grant.summary.agency_contact_description || 'Not provided'}
+Email: ${grant.summary.agency_email_address || 'Not provided'}
+Phone: ${grant.summary.agency_phone_number || 'Not provided'}
+
+ELIGIBILITY
+------------------
+${grant.summary.applicant_eligibility_description ? 
+  grant.summary.applicant_eligibility_description.replace(/<[^>]*>/g, '').trim() : 
+  'Eligibility information not provided'}
+
+ADDITIONAL INFORMATION
+------------------
+More Details URL: ${grant.summary.additional_info_url || 'Not available'}
+
+Description:
+${grant.summary.summary_description ? 
+  grant.summary.summary_description.replace(/<[^>]*>/g, '').trim() : 
+  'No description available'}
+
+==========================================================================
+`;
 };
 
-class ExaServer {
-  private server: Server;
-  private exa: any;
-  private recentSearches: CachedSearch[] = [];
-  private readonly MAX_CACHED_SEARCHES = 10;
+const createSummary = (grants: Grant[], searchQuery: string, page: number = 1, grantsPerPage: number = 3) => {
+  const startIdx = (page - 1) * grantsPerPage;
+  const endIdx = startIdx + grantsPerPage;
+  const displayedGrants = grants.slice(startIdx, endIdx);
+  const totalPages = Math.ceil(grants.length / grantsPerPage);
 
-  constructor() {
-    const ExaDefault = Exa.default || Exa;
-    this.exa = new ExaDefault(API_KEY);
+  return `Search Results for "${searchQuery}":
 
-    this.server = new Server({
-      name: "exa-search-server",
-      version: "0.2.0"
-    }, {
-      capabilities: {
-        tools: {}
+OVERVIEW
+--------
+Total Grants Found: ${grants.length}
+Showing grants ${startIdx + 1} to ${Math.min(endIdx, grants.length)} of ${grants.length}
+Page ${page} of ${totalPages}
+
+DETAILED GRANT LISTINGS
+----------------------
+${displayedGrants.map(formatGrantDetails).join("\n")}
+
+Note: Showing ${grantsPerPage} grants per page. Total grants available: ${grants.length}
+`;
+};
+
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [{
+      name: "search-grants",
+      description: "Search for government grants based on keywords",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query for grants (e.g., 'Artificial intelligence', 'Climate change')"
+          },
+          page: {
+            type: "number",
+            description: "Page number for pagination (default: 1)"
+          },
+          grantsPerPage: {
+            type: "number",
+            description: "Number of grants per page (default: 3)"
+          }
+        },
+        required: ["query"]
       }
-    });
+    }]
+  };
+});
 
-    this.setupHandlers();
-    this.setupErrorHandling();
-  }
-
-  private extractDomain(url: string): string {
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (request.params.name === "search-grants") {
     try {
-      const domain = new URL(url).hostname;
-      return domain.replace(/^www\./, '');
-    } catch {
-      return 'unknown-source';
-    }
-  }
-
-  private formatSearchResults(results: SearchResult[], category: string): string {
-    const formattedResults = results.map((result, index) => {
-      const header = chalk.blue(`[${category.toUpperCase()}] Result ${index + 1}`);
-      const title = chalk.green(`Title: ${result.title}`);
-      const url = chalk.yellow(`URL: ${result.url}`);
-      const score = chalk.cyan(`Relevance Score: ${result.score}`);
+      const args = request.params.arguments as { query?: string; page?: number; grantsPerPage?: number } | undefined;
+      const searchQuery = args?.query ? String(args.query).trim() : "Artificial intelligence";
+      const page = args?.page || 1;
+      const grantsPerPage = args?.grantsPerPage || 3;
       
-      let content = '';
-      if (result.content) {
-        if (result.content.text) {
-          content += `\nContent: ${result.content.text}`;
-        }
-        if (result.content.highlights && result.content.highlights.length > 0) {
-          content += '\nHighlights:\n' + result.content.highlights.map(h => `- ${h}`).join('\n');
-        }
-      }
+      console.error(`Debug: Starting search with query: ${searchQuery}, page: ${page}, grantsPerPage: ${grantsPerPage}`);
 
-      return `${header}\n${title}\n${url}\n${score}${content}\n${'-'.repeat(50)}`;
-    }).join('\n');
-
-    return formattedResults;
-  }
-
-  private async performSearch(query: unknown, category: string, options: any) {
-    if (typeof query !== 'string') {
-      throw new Error('Query must be a string');
-    }
-    
-    try {
-      const searchOptions = {
-        type: "neural",
-        category: category === "research" ? "research paper" : "news",
-        useAutoprompt: true,
-        ...options
+      const url = 'https://api.simpler.grants.gov/v1/opportunities/search';
+      const searchData = {
+        filters: {
+          opportunity_status: {
+            one_of: ["forecasted", "posted"]
+          }
+        },
+        pagination: {
+          order_by: "opportunity_id",
+          page_offset: page,
+          page_size: grantsPerPage,
+          sort_direction: "descending"
+        },
+        query: searchQuery
       };
 
-      const results = await this.exa.search(query, searchOptions);
-
-      // Cache results
-      this.recentSearches.unshift({
-        query,
-        response: results,
-        timestamp: new Date().toISOString(),
-        category
+      const response = await axios.post<GrantsAPIResponse>(url, searchData, {
+        headers: {
+          'accept': 'application/json',
+          'X-Auth': API_KEY,
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (this.recentSearches.length > this.MAX_CACHED_SEARCHES) {
-        this.recentSearches.pop();
-      }
-
-      console.error(this.formatSearchResults(results.results || [], category));
-
-      return results;
-    } catch (error) {
-      console.error(`Search error (${category}):`, error);
-      throw error;
-    }
-  }
-
-  private setupErrorHandling(): void {
-    this.server.onerror = (error) => {
-      console.error(chalk.red("[MCP Error]"), error);
-    };
-
-    process.on('SIGINT', async () => {
-      console.error(chalk.yellow("\nShutting down Exa Search server..."));
-      await this.server.close();
-      process.exit(0);
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error(chalk.red('Unhandled Rejection at:'), promise, chalk.red('reason:'), reason);
-    });
-  }
-
-  private setupHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [EXA_SEARCH_TOOL]
-    }));
-
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (request.params.name !== "search") {
-        throw new McpError(
-          ErrorCode.MethodNotFound,
-          `Unknown tool: ${request.params.name}`
-        );
-      }
-
-      const args = request.params.arguments as SearchArguments | undefined;
-      if (!args?.query || typeof args.query !== 'string') {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          "Query is required and must be a string"
-        );
-      }
-
-      try {
-        const category = args.category || "both";
-        const options = {
-          limit: args.numResults || 10,
-          contents: args.includeContent ? { text: true } : undefined,
-          highlights: args.highlightResults
-        };
-
-        const [researchResults, newsResults] = await Promise.all([
-          this.performSearch(args.query, "research", options),
-          this.performSearch(args.query, "news", options)
-        ]) as [ExaResponse, ExaResponse];
-
-        // Format results to emphasize relevant links and sources
-        const formattedResults: FormattedResults = {
-          research_papers: {
-            results: researchResults.results?.map((result: ExaResult) => ({
-              title: result.title,
-              url: result.url,
-              source: this.extractDomain(result.url),
-              relevance_score: result.score,
-              highlights: result.content?.highlights || [],
-              summary: result.content?.text || ''
-            })) || [],
-            total_found: researchResults.totalResults || 0
-          },
-          news_articles: {
-            results: newsResults.results?.map((result: ExaResult) => ({
-              title: result.title,
-              url: result.url,
-              source: this.extractDomain(result.url),
-              relevance_score: result.score,
-              highlights: result.content?.highlights || [],
-              summary: result.content?.text || ''
-            })) || [],
-            total_found: newsResults.totalResults || 0
-          },
-          query_info: {
-            query: args.query,
-            timestamp: new Date().toISOString(),
-            results_per_category: options.limit || 10
-          }
-        };
-
+      if (!response.data?.data) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify(formattedResults, null, 2)
+            text: "No results found or invalid response format"
           }]
         };
-      } catch (error: unknown) {
-        console.error(chalk.red("Search error:"), error);
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Failed to perform search: ${error instanceof Error ? error.message : String(error)}`
-        );
       }
-    });
-  }
 
-  async run(): Promise<void> {
+      const grants = response.data.data;
+      if (grants.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No grants found matching "${searchQuery}"`
+          }]
+        };
+      }
+
+      const summaryText = createSummary(grants, searchQuery, page, grantsPerPage);
+
+      return {
+        content: [{
+          type: "text",
+          text: summaryText
+        }]
+      };
+
+    } catch (error) {
+      console.error('Debug: Error occurred:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Debug: Axios error response:', error.response?.data);
+        return {
+          content: [{
+            type: "text",
+            text: `API Error: ${error.response?.data?.message || error.message}`
+          }]
+        };
+      }
+      return {
+        content: [{
+          type: "text",
+          text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+        }]
+      };
+    }
+  }
+  
+  throw new Error(`Unknown tool: ${request.params.name}`);
+});
+
+async function run() {
+  try {
+    console.error('Debug: Starting server with API key:', API_KEY ? 'Present' : 'Missing');
     const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error(chalk.green("Exa Search MCP server running on stdio"));
+    await server.connect(transport);
+    console.error("Grants Search MCP server running on stdio");
+  } catch (error) {
+    console.error('Debug: Server startup error:', error);
+    throw error;
   }
 }
 
-const server = new ExaServer();
-server.run().catch((error) => {
-  console.error(chalk.red("Fatal error running server:"), error);
+run().catch((error) => {
+  console.error("Fatal error running server:", error);
   process.exit(1);
 });
