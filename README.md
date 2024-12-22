@@ -1,190 +1,63 @@
-# Enhanced Exa MCP Server
+# Grants Search MCP Server
 
-This is an enhanced fork of the [original Exa MCP server](https://github.com/exa-labs/exa-mcp-server) that provides neural search capabilities using the Exa API. The server enables Large Language Models (LLMs) to search and analyze both academic research papers and news articles with improved semantic understanding.
+This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
 
-## What's New in This Fork
+## Overview
 
-- **Always Comprehensive**: Returns both research papers and news articles for every query
-- **Enhanced Result Format**: Includes source domains, relevance scores, and content highlights
-- **Improved Error Handling**: Better error messages and type safety
-- **Rich Console Output**: Colorized logging for better debugging
-- **Type Safety**: Fully typed TypeScript implementation
+The Grants Search MCP Server is built using the `@modelcontextprotocol/sdk` package. It exposes a single tool called "search-grants" that allows users to search for available government grants based on a search query.
 
-## Prerequisites
-
-- Node.js (v16 or higher)
-- NPM
-- An Exa API key (get one from [Exa's website](https://exa.ai))
-
-## Quick Start
-
-1. Fork and clone the repository:
-```bash
-# Fork using GitHub's interface, then:
-git clone https://github.com/YOUR_USERNAME/exa-mcp-server.git
-cd exa-mcp-server
-
-# Add original repo as upstream
-git remote add upstream https://github.com/exa-labs/exa-mcp-server.git
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up your API key:
-```bash
-echo "EXA_API_KEY=your-api-key-here" > .env
-```
-
-4. Build the server:
-```bash
-npm run build
-```
-
-## Connecting to Claude Desktop
-
-1. Create or edit your Claude Desktop config:
-
-```bash
-# On macOS:
-mkdir -p ~/Library/Application\ Support/Claude/
-code ~/Library/Application\ Support/Claude/claude_desktop_config.json
-
-# On Windows:
-code %APPDATA%\Claude\claude_desktop_config.json
-```
-
-2. Add the server configuration:
-```json
-{
-  "mcpServers": {
-    "exa": {
-      "command": "node",
-      "args": ["/absolute/path/to/exa-mcp-server/build/index.js"]
-    }
-  }
-}
-```
-
-3. Restart Claude Desktop
+The server interacts with the Simpler Grants API to fetch the grant data and formats the results for display.
 
 ## Features
 
-### Search Capabilities
-- Neural search with semantic understanding
-- Dual category search (research papers + news)
-- Content highlights and summaries
-- Source attribution and relevance scoring
-- Query caching and history
+- Search for government grants by keyword
+- Paginate the search results
+- Display detailed information about each grant, including:
+  - Opportunity title, number, and status
+  - Funding information (award floor, award ceiling, category)
+  - Dates and deadlines
+  - Contact information
+  - Eligibility requirements
+  - Additional information URL
 
-### Response Format
+## Setup
 
-Every search returns results in this format:
-```json
-{
-  "research_papers": {
-    "results": [
-      {
-        "title": "Example Research Paper",
-        "url": "https://example.edu/paper",
-        "source": "example.edu",
-        "relevance_score": 0.95,
-        "highlights": ["relevant excerpt 1", "relevant excerpt 2"],
-        "summary": "Brief summary of the paper..."
-      }
-    ],
-    "total_found": 100
-  },
-  "news_articles": {
-    "results": [...],
-    "total_found": 50
-  },
-  "query_info": {
-    "query": "original search query",
-    "timestamp": "2024-12-16T00:00:00.000Z",
-    "results_per_category": 10
-  }
-}
-```
+1. Clone the repository and navigate to the project directory.
+2. Install the required dependencies:
+   - Node.js 16 or higher
+   - `npm install`
+3. Set the `API_KEY` environment variable with your Simpler Grants API key.
+4. Start the MCP server:
+   ```
+   npm start
+   ```
 
-## Development
+The server will start running and listen for incoming MCP client connections.
 
-### Project Structure
-```
-exa-mcp-server/
-├── src/
-│   └── index.ts      # Main server implementation
-├── build/            # Compiled JavaScript
-├── package.json
-├── tsconfig.json
-└── .env
-```
+## Usage
 
-### Staying Updated with Upstream
+Once the server is running, you can connect to it using an MCP client (e.g., Claude Desktop).
 
-To get updates from the original repo:
-```bash
-git fetch upstream
-git checkout main
-git merge upstream/main
-```
+To use the "search-grants" tool, simply send a request with the following parameters:
 
-### Making Changes
+- `query`: The search query (e.g., "Artificial intelligence", "Climate change")
+- `page`: The page number for pagination (default: 1)
+- `grantsPerPage`: The number of grants to display per page (default: 3)
 
-1. Create a new branch:
-```bash
-git checkout -b feature/your-feature-name
-```
+The server will respond with a formatted summary of the search results, including the grant details.
 
-2. Make your changes and commit:
-```bash
-git add .
-git commit -m "Description of your changes"
-```
+## Customization
 
-3. Push to your fork:
-```bash
-git push origin feature/your-feature-name
-```
+You can customize the server by modifying the following:
 
-## Contributing Back
-
-1. Update your fork with the latest upstream changes
-2. Make your improvements in a new branch
-3. Push to your fork
-4. Create a Pull Request to the original repository
-5. Describe your changes and why they're valuable
+- `formatGrantDetails`: The function that formats the grant information for display
+- `createSummary`: The function that generates the search results summary
+- `API_KEY`: The Simpler Grants API key used to authenticate the requests
 
 ## Troubleshooting
 
-### Common Issues
+If you encounter any issues, please check the server logs for more information. You can also reach out to the project maintainers for assistance.
 
-1. **Build Errors**
-   - Make sure TypeScript is installed: `npm install -D typescript`
-   - Check your Node.js version: `node --version`
+## Contributing
 
-2. **Connection Issues**
-   - Verify your API key in .env
-   - Check Claude Desktop config path
-   - Ensure absolute paths are used
-
-3. **Type Errors**
-   - Run `npm install` to get latest types
-   - Check TypeScript version matches requirements
-
-## Credit
-
-This project is a fork of the [Exa MCP Server](https://github.com/exa-labs/exa-mcp-server) created by Exa Labs. The original work laid the foundation for this enhanced version.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Original Exa MCP Server](https://github.com/exa-labs/exa-mcp-server)
-- [Model Context Protocol](https://github.com/modelcontextprotocol)
-- [Exa API](https://exa.ai)
-- [Claude by Anthropic](https://anthropic.com)
+If you'd like to contribute to this project, please fork the repository and submit a pull request with your changes.
