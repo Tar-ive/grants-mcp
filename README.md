@@ -3,7 +3,7 @@
 This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
 
 # Video Introduction
-<iframe src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7276434728172339201?compact=1" height="399" width="504" frameborder="0" allowfullscreen="" title="Embedded post"></iframe>
+Video [mcp-grants.mp4]
 
 ## Overview
 
