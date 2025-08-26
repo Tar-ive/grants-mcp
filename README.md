@@ -3,7 +3,7 @@
 This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
 
 # Video Introduction
-Video [Grants](https://github.com/Tar-ive/grants-mcp/blob/main/mcp-grants.mp4)]
+[![Video Introduction](./path-to-screenshot.png)](https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7276434728172339201)
 
 ## Overview
 
