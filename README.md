@@ -2,6 +2,10 @@
 
 This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
 
+<a href="https://glama.ai/mcp/servers/xa284zebk4">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/xa284zebk4/badge" alt="Grants Search Server MCP server" />
+</a>
+
 # Video Introduction
 [![Video Introduction](./path-to-screenshot.png)](https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7276434728172339201)
 
