@@ -43,7 +43,7 @@ interface GrantsAPIResponse {
 }
 
 const server = new Server({
-  name: "exa",
+  name: "grantmanship",
   version: "1.0.0"
 }, {
   capabilities: {

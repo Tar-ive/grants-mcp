@@ -1,11 +1,11 @@
 {
-  "name": "exa-server",
+  "name": "grantmanship",
   "version": "0.1.0",
   "description": "A Model Context Protocol server with Exa which does web search",
   "private": true,
   "type": "module",
   "bin": {
-    "exa-server": "./build/index.js"
+    "grantmanship": "./build/index.js"
   },
   "files": [
     "build"
