@@ -30,7 +30,7 @@ class OpportunitySummary(BaseModel):
 class OpportunityV1(BaseModel):
     """Grant opportunity model matching API v1 schema."""
     
-    opportunity_id: int
+    opportunity_id: str  # Can be UUID or integer as string
     opportunity_number: str
     opportunity_title: str
     opportunity_status: str
@@ -41,9 +41,7 @@ class OpportunityV1(BaseModel):
     category: Optional[str] = None
     category_explanation: Optional[str] = None
     
-    class Config:
-        """Pydantic configuration."""
-        extra = "allow"  # Allow additional fields from API
+    model_config = {"extra": "allow"}  # Allow additional fields from API
 
 
 class AgencyV1(BaseModel):
@@ -55,22 +53,23 @@ class AgencyV1(BaseModel):
     sub_agency_name: Optional[str] = None
     top_level_agency_name: Optional[str] = None
     
-    class Config:
-        """Pydantic configuration."""
-        extra = "allow"
+    model_config = {"extra": "allow"}
 
 
 class PaginationInfo(BaseModel):
     """Pagination information from API responses."""
     
     page_size: int
-    page_number: int
+    page_offset: Optional[int] = None  # Can be page_offset or page_number
+    page_number: Optional[int] = None  # Can be page_offset or page_number
     total_records: int
-    total_pages: int
+    total_pages: Optional[int] = None
     
-    class Config:
-        """Pydantic configuration."""
-        extra = "allow"
+    model_config = {"extra": "allow"}
+    
+    def get_page_number(self) -> int:
+        """Get the current page number."""
+        return self.page_number or self.page_offset or 1
 
 
 class GrantsAPIResponse(BaseModel):
@@ -83,9 +82,7 @@ class GrantsAPIResponse(BaseModel):
     errors: Optional[List[Dict[str, Any]]] = None
     facet_counts: Optional[Dict[str, Dict[str, int]]] = None
     
-    class Config:
-        """Pydantic configuration."""
-        extra = "allow"
+    model_config = {"extra": "allow"}
     
     def get_opportunities(self) -> List[OpportunityV1]:
         """Convert data to opportunity models."""

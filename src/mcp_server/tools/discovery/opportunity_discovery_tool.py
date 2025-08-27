@@ -23,6 +23,19 @@ def format_grant_details(grant: OpportunityV1) -> str:
     """
     summary = grant.summary
     
+    # Format funding amounts
+    award_floor = f"${summary.award_floor:,.0f}" if summary.award_floor else "Not specified"
+    award_ceiling = f"${summary.award_ceiling:,.0f}" if summary.award_ceiling else "Not specified"
+    
+    # Clean up HTML in descriptions
+    eligibility = summary.applicant_eligibility_description or "Eligibility information not provided"
+    if eligibility and eligibility != "Eligibility information not provided":
+        eligibility = eligibility.replace('<br/>', '\n').strip()
+    
+    description = summary.summary_description or "No description available"
+    if description and description != "No description available":
+        description = description.replace('<br/>', '\n').strip()
+    
     return f"""
 OPPORTUNITY DETAILS
 ------------------
@@ -33,8 +46,8 @@ Status: {grant.opportunity_status}
 
 FUNDING INFORMATION
 ------------------
-Award Floor: ${summary.award_floor:,.0f} if summary.award_floor else 'Not specified'}
-Award Ceiling: ${summary.award_ceiling:,.0f} if summary.award_ceiling else 'Not specified'}
+Award Floor: {award_floor}
+Award Ceiling: {award_ceiling}
 Category: {grant.category or 'Not specified'}
 
 DATES AND DEADLINES
@@ -50,14 +63,14 @@ Phone: {summary.agency_phone_number or 'Not provided'}
 
 ELIGIBILITY
 ------------------
-{summary.applicant_eligibility_description.replace('<br/>', '\n').strip() if summary.applicant_eligibility_description else 'Eligibility information not provided'}
+{eligibility}
 
 ADDITIONAL INFORMATION
 ------------------
 More Details URL: {summary.additional_info_url or 'Not available'}
 
 Description:
-{summary.summary_description.replace('<br/>', '\n').strip() if summary.summary_description else 'No description available'}
+{description}
 
 {'=' * 74}
 """

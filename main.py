@@ -6,14 +6,12 @@ A comprehensive MCP server for discovering and analyzing government grants
 using the Simpler Grants API.
 """
 
-import asyncio
 import logging
 import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastmcp import FastMCP
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -55,8 +53,8 @@ def main():
         logger.info("Starting Grants Analysis MCP Server v2.0.0")
         server = GrantsAnalysisServer(settings)
         
-        # Run the server
-        asyncio.run(server.run())
+        # Run the server synchronously (FastMCP handles its own async)
+        server.run_sync()
         
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")

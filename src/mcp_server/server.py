@@ -145,8 +145,32 @@ Use the following workflow:
         
         logger.info("Registered all prompts")
     
+    def run_sync(self):
+        """Run the MCP server synchronously."""
+        try:
+            logger.info("Starting MCP server...")
+            
+            # FastMCP handles its own event loop for stdio transport
+            self.mcp.run()
+            
+        except Exception as e:
+            logger.error(f"Server error: {e}", exc_info=True)
+            raise
+        finally:
+            # Cleanup (sync version)
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.api_client.close())
+                else:
+                    loop.run_until_complete(self.api_client.close())
+            except:
+                pass  # Best effort cleanup
+            logger.info("Server shutdown complete")
+    
     async def run(self):
-        """Run the MCP server."""
+        """Run the MCP server asynchronously (for testing)."""
         try:
             logger.info("Starting MCP server...")
             
