@@ -40,7 +40,19 @@ cd grants-mcp
 ```
 
 ### 2. Configure API Key
-Edit `docker-compose.yml` and replace the API key:
+
+**Important**: You must provide your own API key. Never commit API keys to version control.
+
+Option A - Using .env file (Recommended):
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env and add your actual API key
+# SIMPLER_GRANTS_API_KEY=your_actual_api_key_here
+```
+
+Option B - Edit docker-compose.yml directly:
 ```yaml
 environment:
   - SIMPLER_GRANTS_API_KEY=your_actual_api_key_here
