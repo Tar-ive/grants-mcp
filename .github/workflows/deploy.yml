@@ -14,6 +14,7 @@ jobs:
   deploy:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
+    environment: gcloud deploy
     
     permissions:
       contents: read
@@ -30,23 +31,28 @@ jobs:
 
       - name: Debug - Check secrets availability
         run: |
-          echo "Checking if secrets are available..."
+          echo "Checking if secrets are available from environment 'gcloud deploy'..."
           if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
             echo "❌ GCP_SA_KEY secret is empty or not set"
           else
-            echo "✅ GCP_SA_KEY secret is available"
+            echo "✅ GCP_SA_KEY secret is available (length: ${#GCP_SA_KEY})"
           fi
           if [ -z "${{ secrets.SIMPLER_GRANTS_API_KEY }}" ]; then
             echo "❌ SIMPLER_GRANTS_API_KEY secret is empty or not set"
           else
             echo "✅ SIMPLER_GRANTS_API_KEY secret is available"
           fi
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "❌ GCP_PROJECT_ID secret is empty or not set (using fallback: ${{ env.PROJECT_ID }})"
+          else
+            echo "✅ GCP_PROJECT_ID secret is available: ${{ secrets.GCP_PROJECT_ID }}"
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-          project_id: ${{ env.PROJECT_ID }}
+          project_id: ${{ secrets.GCP_PROJECT_ID || env.PROJECT_ID }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
