@@ -59,5 +59,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/health || exit 1
 
-# Run the fixed MCP server
-CMD ["python", "mcp_server_fixed.py"]
+# Run the working test server (confirmed working)
+CMD ["python", "simple_test_server.py"]
