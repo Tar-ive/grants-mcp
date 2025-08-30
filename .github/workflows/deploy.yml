@@ -83,7 +83,9 @@ jobs:
             --min-instances 0 \
             --max-instances 5 \
             --allow-unauthenticated \
-            --service-account grants-mcp-runner@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+            --service-account grants-mcp-runner@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --cpu-throttling \
+            --execution-environment gen2
 
       - name: Get service URL
         id: get-url

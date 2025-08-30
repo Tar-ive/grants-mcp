@@ -170,7 +170,10 @@ Use the following workflow:
         from datetime import datetime, timezone
         
         port = int(os.getenv("PORT", port or 8080))
-        logger.info(f"Starting HTTP server on {host}:{port}/mcp")
+        logger.info(f"🚀 Starting Grants MCP Server HTTP server on {host}:{port}")
+        logger.info(f"📊 MCP endpoint: http://{host}:{port}/mcp")
+        logger.info(f"❤️ Health endpoint: http://{host}:{port}/health")
+        logger.info(f"🏠 Root endpoint: http://{host}:{port}/")
         
         # Add health check endpoint
         @self.mcp.get("/health")
@@ -188,6 +191,18 @@ Use the following workflow:
                     "size": len(self.cache._cache) if hasattr(self.cache, '_cache') else 0
                 },
                 "tools_registered": len(self.context.get("tools", {}))
+            }
+
+        # Add root path handler for Cloud Run health checks
+        @self.mcp.get("/")
+        async def root_handler():
+            """Root path handler - redirects to health check."""
+            return {
+                "service": "grants-mcp",
+                "status": "running",
+                "mcp_endpoint": "/mcp",
+                "health_endpoint": "/health",
+                "message": "Grants MCP Server is running. Use /mcp for MCP protocol, /health for health checks."
             }
         
         try:
