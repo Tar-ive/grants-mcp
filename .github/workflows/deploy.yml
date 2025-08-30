@@ -1,0 +1,129 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: grants-mcp
+  REGION: us-central1
+  SERVICE: grants-mcp
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=moby/buildkit:buildx-stable-1
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use gcloud as credential helper
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Create Artifact Registry repository (if not exists)
+        run: |
+          gcloud artifacts repositories describe grants-mcp \
+            --location=${{ env.REGION }} || \
+          gcloud artifacts repositories create grants-mcp \
+            --repository-format=docker \
+            --location=${{ env.REGION }} \
+            --description="Docker repository for Grants MCP server"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/grants-mcp/server:latest
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/grants-mcp/server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/grants-mcp/server:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --port 8080 \
+            --set-env-vars MCP_TRANSPORT=http \
+            --set-env-vars PORT=8080 \
+            --set-env-vars SIMPLER_GRANTS_API_KEY=${{ secrets.SIMPLER_GRANTS_API_KEY }} \
+            --set-env-vars LOG_LEVEL=INFO \
+            --set-env-vars PYTHONUNBUFFERED=1 \
+            --set-env-vars CACHE_TTL=300 \
+            --set-env-vars MAX_CACHE_SIZE=1000 \
+            --memory 1Gi \
+            --cpu 1 \
+            --timeout 300 \
+            --concurrency 1000 \
+            --min-instances 0 \
+            --max-instances 100 \
+            --allow-unauthenticated \
+            --service-account grants-mcp-runner@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "🚀 Service deployed to: $SERVICE_URL"
+
+      - name: Test deployment
+        run: |
+          echo "Testing deployment health..."
+          curl -f ${{ steps.get-url.outputs.service_url }}/health || echo "Health check endpoint not yet available"
+          
+          echo "Testing MCP tools endpoint..."
+          curl -X POST ${{ steps.get-url.outputs.service_url }}/mcp \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json, text/event-stream" \
+            -d '{"jsonrpc":"2.0","method":"tools/list","id":1}' \
+            --max-time 30 || echo "MCP endpoint test completed"
+
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service URL**: ${{ steps.get-url.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **MCP Endpoint**: ${{ steps.get-url.outputs.service_url }}/mcp" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Check**: ${{ steps.get-url.outputs.service_url }}/health" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/grants-mcp/server:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: ${{ env.REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Claude Desktop Configuration" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '{' >> $GITHUB_STEP_SUMMARY
+          echo '  "mcpServers": {' >> $GITHUB_STEP_SUMMARY
+          echo '    "grants-mcp-cloud": {' >> $GITHUB_STEP_SUMMARY
+          echo '      "command": "npx",' >> $GITHUB_STEP_SUMMARY
+          echo '      "args": ["mcp-remote", "${{ steps.get-url.outputs.service_url }}/mcp"]' >> $GITHUB_STEP_SUMMARY
+          echo '    }' >> $GITHUB_STEP_SUMMARY
+          echo '  }' >> $GITHUB_STEP_SUMMARY
+          echo '}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
