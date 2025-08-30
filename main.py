@@ -41,6 +41,10 @@ def main():
         api_key = os.getenv("API_KEY") or os.getenv("SIMPLER_GRANTS_API_KEY")
         if not api_key:
             logger.error("API_KEY or SIMPLER_GRANTS_API_KEY not found in environment variables")
+            logger.info("Available environment variables:")
+            for key, value in os.environ.items():
+                if 'KEY' in key.upper() or 'API' in key.upper():
+                    logger.info(f"  {key}={'***' if value else 'None'}")
             sys.exit(1)
         
         # Create settings
@@ -54,9 +58,16 @@ def main():
         )
         
         # Initialize and run the server
-        logger.info("Starting Grants Analysis MCP Server v2.0.0")
+        logger.info("🚀 Starting Grants Analysis MCP Server v2.0.0")
+        logger.info(f"🔧 Transport: {transport}")
+        logger.info(f"🔑 API Key configured: {'Yes' if api_key else 'No'}")
+        logger.info(f"💾 Cache TTL: {settings.cache_ttl}s")
+        logger.info(f"📊 Max cache size: {settings.max_cache_size}")
+        
+        logger.info("📦 Creating server instance...")
         server = GrantsAnalysisServer(settings)
         
+        logger.info("▶️ Starting server...")
         # Run the server synchronously (FastMCP handles its own async)
         server.run_sync()
         
