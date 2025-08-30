@@ -1,0 +1,975 @@
+name: Adaptive QA Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run adaptive testing daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      force_full_analysis:
+        description: 'Force complete codebase analysis'
+        type: boolean
+        default: false
+      risk_threshold:
+        description: 'Risk threshold for test generation (0.0-1.0)'
+        type: string
+        default: '0.5'
+      compliance_checks:
+        description: 'Enable compliance checks'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  ADAPTIVE_TESTING_ENABLED: "true"
+  RISK_THRESHOLD: ${{ github.event.inputs.risk_threshold || '0.5' }}
+
+jobs:
+  # Job 1: Change Detection and Risk Assessment
+  change-analysis:
+    name: Change Detection & Risk Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      has-changes: ${{ steps.detect-changes.outputs.has-changes }}
+      risk-level: ${{ steps.risk-assessment.outputs.risk-level }}
+      affected-files: ${{ steps.detect-changes.outputs.affected-files }}
+      test-strategy: ${{ steps.risk-assessment.outputs.test-strategy }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for change detection
+        
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install analysis dependencies
+      run: |
+        pip install -r requirements-dev.txt
+        pip install gitpython pydantic bandit safety
+        
+    - name: Detect code changes
+      id: detect-changes
+      run: |
+        python -c "
+        import git
+        import json
+        import os
+        from pathlib import Path
+        
+        repo = git.Repo('.')
+        
+        # Get changed files since last commit or in PR
+        if os.getenv('GITHUB_EVENT_NAME') == 'pull_request':
+            base = os.getenv('GITHUB_BASE_REF', 'main')
+            changed_files = list(repo.git.diff('--name-only', f'origin/{base}').split('\n'))
+        elif '${{ github.event.inputs.force_full_analysis }}' == 'true':
+            changed_files = [str(f) for f in Path('src').rglob('*.py')]
+        else:
+            # Compare with previous commit
+            if len(list(repo.iter_commits('HEAD', max_count=2))) > 1:
+                changed_files = list(repo.git.diff('--name-only', 'HEAD~1').split('\n'))
+            else:
+                changed_files = [str(f) for f in Path('src').rglob('*.py')]
+        
+        # Filter for source files
+        source_files = [f for f in changed_files if f.startswith('src/') and (f.endswith('.py') or f.endswith('.ts'))]
+        
+        has_changes = len(source_files) > 0
+        print(f'has-changes={str(has_changes).lower()}')
+        print(f'affected-files={json.dumps(source_files)}')
+        
+        # Write to GitHub outputs
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            f.write(f'has-changes={str(has_changes).lower()}\n')
+            f.write(f'affected-files={json.dumps(source_files)}\n')
+        "
+        
+    - name: Initialize adaptive testing system
+      if: steps.detect-changes.outputs.has-changes == 'true'
+      run: |
+        python -c "
+        import sys
+        sys.path.append('testing')
+        
+        from testing.agents.orchestrator import AdaptiveTestingOrchestrator, create_orchestrator_config
+        from pathlib import Path
+        import asyncio
+        import json
+        import os
+        
+        async def initialize():
+            config = create_orchestrator_config()
+            config['risk_threshold'] = float('${{ env.RISK_THRESHOLD }}')
+            
+            orchestrator = AdaptiveTestingOrchestrator(
+                project_root=Path('.'),
+                config=config
+            )
+            
+            # Get current status
+            status = await orchestrator.get_status()
+            print('Adaptive Testing System Status:', json.dumps(status, indent=2))
+            
+            return status
+        
+        status = asyncio.run(initialize())
+        "
+        
+    - name: Perform risk assessment
+      id: risk-assessment
+      if: steps.detect-changes.outputs.has-changes == 'true'
+      run: |
+        python -c "
+        import sys
+        sys.path.append('testing')
+        
+        import json
+        import os
+        from pathlib import Path
+        from testing.risk.risk_analyzer import RiskAnalyzer
+        from testing.agents.orchestrator import CodeChangeEvent
+        from datetime import datetime
+        import asyncio
+        
+        async def assess_risk():
+            # Initialize risk analyzer
+            risk_analyzer = RiskAnalyzer({
+                'security_weight': 0.4,
+                'complexity_weight': 0.2, 
+                'business_impact_weight': 0.4
+            })
+            
+            affected_files = json.loads('${{ steps.detect-changes.outputs.affected-files }}')
+            total_risk = 0.0
+            high_risk_files = []
+            assessments = []
+            
+            for file_path in affected_files:
+                if not Path(file_path).exists():
+                    continue
+                    
+                # Create change event
+                change_event = CodeChangeEvent(
+                    file_path=file_path,
+                    change_type='modified',
+                    timestamp=datetime.now(),
+                    file_hash='mock_hash',
+                    complexity_score=5.0,  # Default complexity
+                    affected_modules=[],
+                    test_requirements=['unit']
+                )
+                
+                # Perform risk assessment
+                assessment = await risk_analyzer.analyze_change(change_event)
+                assessments.append({
+                    'file': file_path,
+                    'risk_score': assessment.overall_score,
+                    'risk_level': assessment.level.value,
+                    'findings': len(assessment.findings)
+                })
+                
+                total_risk += assessment.overall_score
+                if assessment.overall_score > 0.7:
+                    high_risk_files.append(file_path)
+            
+            # Determine overall risk level
+            avg_risk = total_risk / len(affected_files) if affected_files else 0.0
+            
+            if avg_risk >= 0.8:
+                risk_level = 'critical'
+                test_strategy = 'comprehensive'
+            elif avg_risk >= 0.6:
+                risk_level = 'high'
+                test_strategy = 'enhanced'
+            elif avg_risk >= 0.4:
+                risk_level = 'medium'
+                test_strategy = 'standard'
+            else:
+                risk_level = 'low'
+                test_strategy = 'minimal'
+            
+            print(f'Risk Assessment Summary:')
+            print(f'  Average Risk Score: {avg_risk:.2f}')
+            print(f'  Risk Level: {risk_level}')
+            print(f'  Test Strategy: {test_strategy}')
+            print(f'  High Risk Files: {len(high_risk_files)}')
+            
+            # Write to GitHub outputs
+            with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+                f.write(f'risk-level={risk_level}\n')
+                f.write(f'test-strategy={test_strategy}\n')
+                f.write(f'avg-risk-score={avg_risk:.2f}\n')
+                f.write(f'high-risk-files={json.dumps(high_risk_files)}\n')
+            
+            # Save detailed assessment
+            with open('risk-assessment.json', 'w') as f:
+                json.dump({
+                    'overall_risk': avg_risk,
+                    'risk_level': risk_level,
+                    'test_strategy': test_strategy,
+                    'assessments': assessments,
+                    'high_risk_files': high_risk_files
+                }, f, indent=2)
+        
+        asyncio.run(assess_risk())
+        "
+        
+    - name: Upload risk assessment
+      if: steps.detect-changes.outputs.has-changes == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: risk-assessment
+        path: risk-assessment.json
+
+  # Job 2: Compliance Validation
+  compliance-check:
+    name: Compliance Validation
+    runs-on: ubuntu-latest
+    needs: change-analysis
+    if: ${{ needs.change-analysis.outputs.has-changes == 'true' && github.event.inputs.compliance_checks != 'false' }}
+    timeout-minutes: 10
+    outputs:
+      compliance-status: ${{ steps.compliance.outputs.status }}
+      critical-violations: ${{ steps.compliance.outputs.critical-violations }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install compliance dependencies
+      run: |
+        pip install -r requirements-dev.txt
+        pip install bandit safety semgrep
+        
+    - name: Run adaptive compliance checks
+      id: compliance
+      run: |
+        python -c "
+        import sys
+        sys.path.append('testing')
+        
+        import json
+        import os
+        from pathlib import Path
+        from testing.compliance.checker import ComplianceChecker
+        import asyncio
+        
+        async def check_compliance():
+            # Initialize compliance checker
+            checker = ComplianceChecker({
+                'enabled_categories': [
+                    'DATA_PRIVACY',
+                    'API_SECURITY', 
+                    'FINANCIAL_REGULATIONS',
+                    'GRANTS_COMPLIANCE'
+                ]
+            })
+            
+            affected_files = json.loads('${{ needs.change-analysis.outputs.affected-files }}')
+            compliance_reports = []
+            critical_violations = []
+            total_score = 0.0
+            
+            for file_path in affected_files:
+                if not Path(file_path).exists() or not file_path.endswith('.py'):
+                    continue
+                    
+                report = await checker.check_file(Path(file_path))
+                compliance_reports.append({
+                    'file': file_path,
+                    'score': report.overall_score,
+                    'compliant': report.is_compliant,
+                    'violations': len(report.violations),
+                    'critical': len([v for v in report.violations if v.level.value == 'critical'])
+                })
+                
+                total_score += report.overall_score
+                
+                # Collect critical violations
+                for violation in report.violations:
+                    if violation.level.value == 'critical':
+                        critical_violations.append({
+                            'file': file_path,
+                            'rule': violation.rule_id,
+                            'description': violation.description,
+                            'category': violation.category.value
+                        })
+            
+            # Calculate overall compliance status
+            avg_score = total_score / len(affected_files) if affected_files else 1.0
+            overall_compliant = avg_score >= 0.8 and len(critical_violations) == 0
+            
+            status = 'compliant' if overall_compliant else 'non_compliant'
+            
+            print(f'Compliance Check Summary:')
+            print(f'  Overall Score: {avg_score:.2f}')
+            print(f'  Status: {status}')
+            print(f'  Critical Violations: {len(critical_violations)}')
+            
+            # Write to GitHub outputs
+            with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+                f.write(f'status={status}\n')
+                f.write(f'critical-violations={len(critical_violations)}\n')
+                f.write(f'compliance-score={avg_score:.2f}\n')
+            
+            # Save compliance report
+            with open('compliance-report.json', 'w') as f:
+                json.dump({
+                    'overall_score': avg_score,
+                    'status': status,
+                    'reports': compliance_reports,
+                    'critical_violations': critical_violations
+                }, f, indent=2)
+        
+        asyncio.run(check_compliance())
+        "
+        
+    - name: Upload compliance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: compliance-report
+        path: compliance-report.json
+
+  # Job 3: Adaptive Test Generation
+  test-generation:
+    name: Intelligent Test Generation
+    runs-on: ubuntu-latest
+    needs: [change-analysis, compliance-check]
+    if: ${{ needs.change-analysis.outputs.has-changes == 'true' }}
+    timeout-minutes: 20
+    outputs:
+      tests-generated: ${{ steps.generate.outputs.tests-generated }}
+      generation-time: ${{ steps.generate.outputs.generation-time }}
+    
+    strategy:
+      matrix:
+        test-category: [unit, integration, compliance, performance]
+        include:
+          - test-category: unit
+            priority: high
+          - test-category: integration  
+            priority: medium
+          - test-category: compliance
+            priority: high
+          - test-category: performance
+            priority: low
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install generation dependencies
+      run: |
+        pip install -r requirements-dev.txt
+        pip install jinja2 ast-tools
+        
+    - name: Generate adaptive tests
+      id: generate
+      run: |
+        python -c "
+        import sys
+        sys.path.append('testing')
+        
+        import json
+        import os
+        import time
+        from pathlib import Path
+        from testing.generators.test_generator import TestCaseGenerator, TestGenerationRequest
+        import asyncio
+        
+        async def generate_tests():
+            start_time = time.time()
+            
+            # Initialize test generator
+            generator = TestCaseGenerator(
+                project_root=Path('.'),
+                config={
+                    'max_tests_per_file': 15,
+                    'test_timeout': 30,
+                    'parallel_generation': True
+                }
+            )
+            
+            affected_files = json.loads('${{ needs.change-analysis.outputs.affected-files }}')
+            test_category = '${{ matrix.test-category }}'
+            priority_map = {'high': 9, 'medium': 6, 'low': 3}
+            priority = priority_map.get('${{ matrix.priority }}', 6)
+            
+            all_generated_files = []
+            
+            for file_path in affected_files:
+                if not Path(file_path).exists() or not file_path.endswith('.py'):
+                    continue
+                
+                # Create test generation request
+                request = TestGenerationRequest(
+                    source_file=file_path,
+                    test_category=test_category,
+                    priority=priority,
+                    complexity_metrics={'risk': 0.5},
+                    dependencies=[],
+                    business_context='grants_processing' if 'grant' in file_path.lower() else 'general'
+                )
+                
+                # Generate tests
+                try:
+                    generated_files = await generator.generate_tests(request)
+                    all_generated_files.extend(generated_files)
+                    print(f'Generated {len(generated_files)} test files for {file_path}')
+                except Exception as e:
+                    print(f'Error generating tests for {file_path}: {e}')
+            
+            generation_time = time.time() - start_time
+            
+            print(f'Test Generation Summary ({test_category}):')
+            print(f'  Files processed: {len(affected_files)}')
+            print(f'  Tests generated: {len(all_generated_files)}')
+            print(f'  Generation time: {generation_time:.2f}s')
+            
+            # Write to GitHub outputs
+            with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+                f.write(f'tests-generated={len(all_generated_files)}\n')
+                f.write(f'generation-time={generation_time:.2f}\n')
+            
+            # Save generation results
+            with open(f'generated-tests-{test_category}.json', 'w') as f:
+                json.dump({
+                    'category': test_category,
+                    'generated_files': all_generated_files,
+                    'generation_time': generation_time,
+                    'files_processed': len(affected_files)
+                }, f, indent=2)
+        
+        asyncio.run(generate_tests())
+        "
+        
+    - name: Upload generated tests
+      uses: actions/upload-artifact@v4
+      with:
+        name: generated-tests-${{ matrix.test-category }}
+        path: |
+          generated-tests-*.json
+          tests/generated/**/*.py
+
+  # Job 4: Risk-Based Test Execution
+  test-execution:
+    name: Risk-Based Test Execution
+    runs-on: ubuntu-latest
+    needs: [change-analysis, test-generation]
+    if: ${{ needs.change-analysis.outputs.has-changes == 'true' }}
+    timeout-minutes: 30
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        risk-category:
+          - critical-high
+          - medium
+          - low-regression
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Download generated tests
+      uses: actions/download-artifact@v4
+      with:
+        pattern: generated-tests-*
+        merge-multiple: true
+        
+    - name: Install test dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        
+    - name: Execute risk-based tests
+      run: |
+        # Determine test selection based on risk category
+        case "${{ matrix.risk-category }}" in
+          critical-high)
+            # Run critical and high-risk tests with maximum coverage
+            pytest tests/generated/ tests/unit/ tests/integration/ \
+              -v --tb=short \
+              -m "not slow" \
+              --cov=src --cov-report=xml:coverage-${{ matrix.risk-category }}.xml \
+              --junit-xml=results-${{ matrix.risk-category }}.xml \
+              --maxfail=3 \
+              --durations=10 \
+              || echo "Some critical tests failed - requires investigation"
+            ;;
+          medium)
+            # Run medium-risk tests with standard coverage
+            pytest tests/generated/ tests/contract/ \
+              -v --tb=line \
+              -m "not slow and not real_api" \
+              --cov=src --cov-append --cov-report=xml:coverage-${{ matrix.risk-category }}.xml \
+              --junit-xml=results-${{ matrix.risk-category }}.xml \
+              --maxfail=5 \
+              || echo "Some medium-risk tests failed"
+            ;;
+          low-regression)
+            # Run regression and low-risk tests
+            pytest tests/performance/ tests/edge_cases/ \
+              -v --tb=line \
+              --junit-xml=results-${{ matrix.risk-category }}.xml \
+              --durations=5 \
+              || echo "Some regression tests failed"
+            ;;
+        esac
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.risk-category }}
+        path: |
+          results-*.xml
+          coverage-*.xml
+
+  # Job 5: Quality Gates and Analysis
+  quality-gates:
+    name: Quality Gates & Metrics
+    runs-on: ubuntu-latest
+    needs: [change-analysis, compliance-check, test-execution]
+    if: always() && needs.change-analysis.outputs.has-changes == 'true'
+    timeout-minutes: 15
+    outputs:
+      quality-status: ${{ steps.quality.outputs.status }}
+      deployment-approved: ${{ steps.quality.outputs.deployment-approved }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install analysis tools
+      run: |
+        pip install coverage junitparser codecov
+        
+    - name: Analyze quality metrics
+      id: quality
+      run: |
+        python -c "
+        import json
+        import os
+        from pathlib import Path
+        from junitparser import JUnitXml
+        import xml.etree.ElementTree as ET
+        
+        # Initialize metrics
+        metrics = {
+            'test_results': {'total': 0, 'passed': 0, 'failed': 0, 'errors': 0},
+            'coverage': {'percentage': 0.0},
+            'risk_assessment': {'average_score': 0.0, 'high_risk_files': 0},
+            'compliance': {'score': 0.0, 'critical_violations': 0},
+            'quality_score': 0.0
+        }
+        
+        # Parse test results
+        junit_files = list(Path('.').glob('**/results-*.xml'))
+        for junit_file in junit_files:
+            try:
+                xml_data = JUnitXml.fromfile(str(junit_file))
+                for suite in xml_data:
+                    metrics['test_results']['total'] += suite.tests
+                    metrics['test_results']['passed'] += suite.tests - suite.failures - suite.errors
+                    metrics['test_results']['failed'] += suite.failures  
+                    metrics['test_results']['errors'] += suite.errors
+            except Exception as e:
+                print(f'Error parsing {junit_file}: {e}')
+        
+        # Parse coverage
+        coverage_files = list(Path('.').glob('**/coverage-*.xml'))
+        if coverage_files:
+            try:
+                # Parse first coverage file
+                tree = ET.parse(str(coverage_files[0]))
+                root = tree.getroot()
+                coverage_elem = root.find('.//coverage')
+                if coverage_elem is not None:
+                    line_rate = coverage_elem.get('line-rate', '0.0')
+                    metrics['coverage']['percentage'] = float(line_rate) * 100
+            except Exception as e:
+                print(f'Error parsing coverage: {e}')
+        
+        # Parse risk assessment
+        risk_file = Path('risk-assessment/risk-assessment.json')
+        if risk_file.exists():
+            try:
+                with open(risk_file) as f:
+                    risk_data = json.load(f)
+                    metrics['risk_assessment']['average_score'] = risk_data.get('overall_risk', 0.0)
+                    metrics['risk_assessment']['high_risk_files'] = len(risk_data.get('high_risk_files', []))
+            except Exception as e:
+                print(f'Error parsing risk assessment: {e}')
+        
+        # Parse compliance
+        compliance_file = Path('compliance-report/compliance-report.json')
+        if compliance_file.exists():
+            try:
+                with open(compliance_file) as f:
+                    compliance_data = json.load(f)
+                    metrics['compliance']['score'] = compliance_data.get('overall_score', 0.0)
+                    metrics['compliance']['critical_violations'] = len(compliance_data.get('critical_violations', []))
+            except Exception as e:
+                print(f'Error parsing compliance report: {e}')
+        
+        # Calculate overall quality score
+        test_score = metrics['test_results']['passed'] / max(metrics['test_results']['total'], 1) * 0.3
+        coverage_score = metrics['coverage']['percentage'] / 100 * 0.2
+        risk_score = max(0, 1 - metrics['risk_assessment']['average_score']) * 0.3
+        compliance_score = metrics['compliance']['score'] * 0.2
+        
+        quality_score = test_score + coverage_score + risk_score + compliance_score
+        metrics['quality_score'] = quality_score
+        
+        # Determine quality gates
+        quality_gates = {
+            'test_pass_rate': metrics['test_results']['passed'] / max(metrics['test_results']['total'], 1) >= 0.8,
+            'coverage_threshold': metrics['coverage']['percentage'] >= 70.0,
+            'risk_acceptable': metrics['risk_assessment']['average_score'] <= 0.7,
+            'compliance_acceptable': metrics['compliance']['critical_violations'] == 0,
+            'overall_quality': quality_score >= 0.7
+        }
+        
+        all_gates_pass = all(quality_gates.values())
+        deployment_approved = all_gates_pass and '${{ needs.change-analysis.outputs.risk-level }}' != 'critical'
+        
+        status = 'pass' if all_gates_pass else 'fail'
+        
+        print('Quality Analysis Summary:')
+        print(f'  Test Results: {metrics[\"test_results\"][\"passed\"]}/{metrics[\"test_results\"][\"total\"]} passed')
+        print(f'  Coverage: {metrics[\"coverage\"][\"percentage\"]:.1f}%')
+        print(f'  Risk Score: {metrics[\"risk_assessment\"][\"average_score\"]:.2f}')
+        print(f'  Compliance Score: {metrics[\"compliance\"][\"score\"]:.2f}')
+        print(f'  Overall Quality: {quality_score:.2f}/1.0')
+        print(f'  Quality Gates: {\"PASS\" if all_gates_pass else \"FAIL\"}')
+        print(f'  Deployment Approved: {\"YES\" if deployment_approved else \"NO\"}')
+        
+        # Write to GitHub outputs
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            f.write(f'status={status}\n')
+            f.write(f'deployment-approved={str(deployment_approved).lower()}\n')
+            f.write(f'quality-score={quality_score:.2f}\n')
+            f.write(f'test-pass-rate={metrics[\"test_results\"][\"passed\"] / max(metrics[\"test_results\"][\"total\"], 1):.2f}\n')
+            f.write(f'coverage-percentage={metrics[\"coverage\"][\"percentage\"]:.1f}\n')
+        
+        # Save quality report
+        with open('quality-report.json', 'w') as f:
+            json.dump({
+                'metrics': metrics,
+                'quality_gates': quality_gates,
+                'overall_status': status,
+                'deployment_approved': deployment_approved,
+                'timestamp': '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")'
+            }, f, indent=2)
+        "
+        
+    - name: Upload quality report
+      uses: actions/upload-artifact@v4
+      with:
+        name: quality-report
+        path: quality-report.json
+        
+    - name: Comment on PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Read quality report
+          let qualityData = {};
+          try {
+            qualityData = JSON.parse(fs.readFileSync('quality-report.json', 'utf8'));
+          } catch (e) {
+            console.log('No quality report found');
+            return;
+          }
+          
+          const metrics = qualityData.metrics;
+          const gates = qualityData.quality_gates;
+          
+          const comment = `## 🤖 Adaptive QA Analysis Results
+          
+          ### Quality Metrics
+          - **Test Results**: ${metrics.test_results.passed}/${metrics.test_results.total} passed (${(metrics.test_results.passed / Math.max(metrics.test_results.total, 1) * 100).toFixed(1)}%)
+          - **Code Coverage**: ${metrics.coverage.percentage.toFixed(1)}%
+          - **Risk Score**: ${metrics.risk_assessment.average_score.toFixed(2)}/1.0
+          - **Compliance Score**: ${metrics.compliance.score.toFixed(2)}/1.0
+          - **Overall Quality**: ${metrics.quality_score.toFixed(2)}/1.0
+          
+          ### Quality Gates
+          - **Test Pass Rate** (≥80%): ${gates.test_pass_rate ? '✅' : '❌'}
+          - **Coverage Threshold** (≥70%): ${gates.coverage_threshold ? '✅' : '❌'}
+          - **Risk Acceptable** (≤0.7): ${gates.risk_acceptable ? '✅' : '❌'}
+          - **Compliance Clean**: ${gates.compliance_acceptable ? '✅' : '❌'}
+          - **Overall Quality** (≥0.7): ${gates.overall_quality ? '✅' : '❌'}
+          
+          ### Deployment Status
+          ${qualityData.deployment_approved ? '🟢 **Approved for deployment**' : '🔴 **Blocked - quality gates failed**'}
+          
+          ${metrics.compliance.critical_violations > 0 ? `\n⚠️ **${metrics.compliance.critical_violations} critical compliance violations detected**` : ''}
+          ${metrics.risk_assessment.high_risk_files > 0 ? `\n⚠️ **${metrics.risk_assessment.high_risk_files} high-risk files detected**` : ''}
+          
+          ---
+          *Generated by Adaptive QA Pipeline*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  # Job 6: Audit Trail and Reporting
+  audit-reporting:
+    name: Audit Trail & Reporting
+    runs-on: ubuntu-latest
+    needs: [change-analysis, compliance-check, test-execution, quality-gates]
+    if: always() && needs.change-analysis.outputs.has-changes == 'true'
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install audit dependencies
+      run: |
+        pip install -r requirements-dev.txt
+        pip install aiosqlite
+        
+    - name: Generate audit report
+      run: |
+        python -c "
+        import sys
+        sys.path.append('testing')
+        
+        import json
+        import os
+        from pathlib import Path
+        from datetime import datetime
+        from testing.audit.trail_manager import AuditTrailManager
+        import asyncio
+        
+        async def generate_audit():
+            # Initialize audit manager
+            audit_manager = AuditTrailManager(Path('testing/audit'))
+            
+            # Collect all data from artifacts
+            audit_data = {
+                'pipeline_run': {
+                    'run_id': os.getenv('GITHUB_RUN_ID'),
+                    'workflow': os.getenv('GITHUB_WORKFLOW'),
+                    'trigger': os.getenv('GITHUB_EVENT_NAME'),
+                    'branch': os.getenv('GITHUB_REF_NAME'),
+                    'commit': os.getenv('GITHUB_SHA'),
+                    'timestamp': datetime.now().isoformat()
+                },
+                'changes_analyzed': '${{ needs.change-analysis.outputs.affected-files }}',
+                'risk_level': '${{ needs.change-analysis.outputs.risk-level }}',
+                'compliance_status': '${{ needs.compliance-check.outputs.compliance-status }}' or 'not_checked',
+                'quality_status': '${{ needs.quality-gates.outputs.quality-status }}',
+                'deployment_approved': '${{ needs.quality-gates.outputs.deployment-approved }}' == 'true'
+            }
+            
+            # Log the pipeline execution
+            await audit_manager.log_event(
+                event_type=audit_manager.__class__.__bases__[0].AuditEventType.SESSION_END,
+                event_data=audit_data,
+                session_id=f\"pipeline_{os.getenv('GITHUB_RUN_ID')}\",
+                severity='info'
+            )
+            
+            # Export audit data
+            export_path = Path('audit-export.json')
+            await audit_manager.export_audit_data(export_path, format='json')
+            
+            print('Audit trail generated successfully')
+            print(f'Audit data exported to {export_path}')
+        
+        asyncio.run(generate_audit())
+        "
+        
+    - name: Upload audit trail
+      uses: actions/upload-artifact@v4
+      with:
+        name: audit-trail
+        path: |
+          audit-export.json
+          testing/audit/**/*.db
+          testing/audit/**/*.jsonl
+        
+    - name: Generate summary report
+      run: |
+        python -c "
+        import json
+        import os
+        from datetime import datetime
+        
+        # Generate executive summary
+        summary = {
+            'pipeline_summary': {
+                'run_id': os.getenv('GITHUB_RUN_ID'),
+                'timestamp': datetime.now().isoformat(),
+                'trigger': os.getenv('GITHUB_EVENT_NAME'),
+                'branch': os.getenv('GITHUB_REF_NAME'),
+                'changes_detected': '${{ needs.change-analysis.outputs.has-changes }}' == 'true',
+                'risk_level': '${{ needs.change-analysis.outputs.risk-level }}',
+                'test_strategy': '${{ needs.change-analysis.outputs.test-strategy }}',
+                'compliance_status': '${{ needs.compliance-check.outputs.compliance-status }}' or 'not_checked',
+                'quality_gates_status': '${{ needs.quality-gates.outputs.quality-status }}',
+                'deployment_approved': '${{ needs.quality-gates.outputs.deployment-approved }}' == 'true'
+            },
+            'recommendations': [],
+            'next_actions': []
+        }
+        
+        # Add recommendations based on results
+        if '${{ needs.change-analysis.outputs.risk-level }}' == 'critical':
+            summary['recommendations'].append('Manual security review required before deployment')
+            summary['next_actions'].append('Schedule security audit')
+        
+        if '${{ needs.compliance-check.outputs.critical-violations }}' != '0':
+            summary['recommendations'].append('Address critical compliance violations immediately')
+            summary['next_actions'].append('Review compliance checklist')
+        
+        if '${{ needs.quality-gates.outputs.deployment-approved }}' != 'true':
+            summary['recommendations'].append('Improve code quality before deployment')
+            summary['next_actions'].append('Review failed quality gates')
+        
+        # Save summary
+        with open('pipeline-summary.json', 'w') as f:
+            json.dump(summary, f, indent=2)
+        
+        # Print summary
+        print('📊 Adaptive QA Pipeline Summary')
+        print('=' * 50)
+        print(f'Run ID: {summary[\"pipeline_summary\"][\"run_id\"]}')
+        print(f'Risk Level: {summary[\"pipeline_summary\"][\"risk_level\"]}')
+        print(f'Quality Status: {summary[\"pipeline_summary\"][\"quality_gates_status\"]}')
+        print(f'Deployment: {\"✅ Approved\" if summary[\"pipeline_summary\"][\"deployment_approved\"] else \"❌ Blocked\"}')
+        if summary['recommendations']:
+            print('\n🔍 Key Recommendations:')
+            for rec in summary['recommendations']:
+                print(f'  • {rec}')
+        "
+        
+    - name: Upload pipeline summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: pipeline-summary
+        path: pipeline-summary.json
+
+  # Job 7: Continuous Monitoring Setup
+  monitoring-setup:
+    name: Setup Continuous Monitoring
+    runs-on: ubuntu-latest
+    needs: [change-analysis, quality-gates]
+    if: ${{ needs.change-analysis.outputs.has-changes == 'true' && github.ref == 'refs/heads/main' }}
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup monitoring configuration
+      run: |
+        mkdir -p .github/monitoring
+        
+        cat > .github/monitoring/adaptive-qa-config.json << 'EOF'
+        {
+          "monitoring_enabled": true,
+          "quality_thresholds": {
+            "test_coverage": 70.0,
+            "risk_threshold": 0.7,
+            "compliance_score": 0.8
+          },
+          "alert_conditions": {
+            "critical_risk_detected": true,
+            "compliance_violations": true,
+            "quality_gates_failed": true,
+            "deployment_blocked": true
+          },
+          "notification_channels": {
+            "slack_webhook": "${{ secrets.SLACK_WEBHOOK }}",
+            "email_alerts": true
+          },
+          "adaptive_settings": {
+            "auto_test_generation": true,
+            "risk_based_prioritization": true,
+            "continuous_compliance_check": true
+          }
+        }
+        EOF
+        
+        echo "Monitoring configuration created"
+        
+    - name: Commit monitoring config
+      if: github.event_name != 'pull_request'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if [[ -n "$(git status --porcelain)" ]]; then
+          git add .github/monitoring/
+          git commit -m "🤖 Update adaptive QA monitoring configuration
+
+          Generated by Adaptive QA Pipeline
+          Run ID: ${{ github.run_id }}
+          Quality Status: ${{ needs.quality-gates.outputs.quality-status }}
+          
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          
+          git push || echo "Push failed - possibly due to permissions"
+        fi
