@@ -34,6 +34,7 @@ COPY --from=builder /root/.local /home/appuser/.local
 # Copy source code
 COPY src/ ./src/
 COPY main.py .
+COPY simple_test_server.py .
 
 # Set environment variables optimized for Cloud Run
 ENV PYTHONUNBUFFERED=1 \
@@ -55,5 +56,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/health || exit 1
 
-# Run the server
-CMD ["python", "main.py"]
+# Run the test server temporarily (change back to main.py once working)
+CMD ["python", "simple_test_server.py"]
