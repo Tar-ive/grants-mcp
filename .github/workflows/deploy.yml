@@ -76,12 +76,12 @@ jobs:
             --set-env-vars PYTHONUNBUFFERED=1 \
             --set-env-vars CACHE_TTL=300 \
             --set-env-vars MAX_CACHE_SIZE=1000 \
-            --memory 1Gi \
+            --memory 512Mi \
             --cpu 1 \
             --timeout 300 \
             --concurrency 1000 \
             --min-instances 0 \
-            --max-instances 100 \
+            --max-instances 5 \
             --allow-unauthenticated \
             --service-account grants-mcp-runner@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
