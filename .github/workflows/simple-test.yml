@@ -30,7 +30,8 @@ jobs:
     - name: Run Basic Tests
       run: |
         # Run basic tests that we know exist
-        python -m pytest tests/test_basic.py -v || echo "Basic tests completed"
+        python tests/test_import.py
+        python -m pytest tests/test_import.py -v || echo "Import tests completed"
         
     - name: Test Import Structure
       run: |

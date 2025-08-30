@@ -27,7 +27,7 @@ coverage[toml]>=7.0.0
 # Code analysis and AST tools
 ast-tools>=0.1.0
 astroid>=2.15.0
-complexity-tool>=1.0.0
+radon>=6.0.1
 
 # Performance and monitoring
 psutil>=5.9.0
