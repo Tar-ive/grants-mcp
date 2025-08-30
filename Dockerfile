@@ -1,34 +1,60 @@
-# Use Python 3.11 for better compatibility
-FROM python:3.11-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Multi-stage build for Cloud Run optimization
+FROM python:3.11-slim as builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy installed dependencies from builder stage
+COPY --from=builder /root/.local /home/appuser/.local
 
 # Copy source code
 COPY src/ ./src/
 COPY main.py .
 
-# Set environment variables
+# Set environment variables optimized for Cloud Run
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     MCP_TRANSPORT=http \
     PORT=8080 \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    PATH=/home/appuser/.local/bin:$PATH
+
+# Change ownership of app directory
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080
 
-# Health check - send proper headers for SSE endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/mcp || exit 1
+# Health check with proper headers for MCP endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/health || exit 1
 
 # Run the server
 CMD ["python", "main.py"]
