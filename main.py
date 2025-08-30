@@ -33,17 +33,21 @@ def main():
         # Load environment variables
         load_dotenv()
         
-        # Get API key from environment
-        api_key = os.getenv("API_KEY")
+        # Get transport mode
+        transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+        logger.info(f"Transport mode: {transport}")
+        
+        # Get API key from environment - support both variable names
+        api_key = os.getenv("API_KEY") or os.getenv("SIMPLER_GRANTS_API_KEY")
         if not api_key:
-            logger.error("API_KEY not found in environment variables")
+            logger.error("API_KEY or SIMPLER_GRANTS_API_KEY not found in environment variables")
             sys.exit(1)
         
         # Create settings
         settings = Settings(
             api_key=api_key,
-            cache_ttl=300,  # 5 minutes
-            max_cache_size=1000,  # Max 1000 cached items
+            cache_ttl=int(os.getenv("CACHE_TTL", "300")),  # 5 minutes default
+            max_cache_size=int(os.getenv("MAX_CACHE_SIZE", "1000")),  # Max 1000 cached items
             rate_limit_requests=100,
             rate_limit_period=60,
             api_base_url="https://api.simpler.grants.gov/v1"

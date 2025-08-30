@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Testing
+tests/
+test_*.py
+quick_api_test.py
+
+# Development
+.env
+.env.*
+*.log
+*.md
+specs/
+docs/
+PHASE2_TESTING_GUIDE.md
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# Mac
+.DS_Store
+
+# Claude Desktop config (don't include in container)
+claude_desktop_config.json
+claude_desktop_configs/
+
+# Docker files (don't need inside container)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Scripts (will create separately)
+scripts/
+
+# Node modules (if any)
+node_modules/
+package*.json

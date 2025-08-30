@@ -148,13 +148,36 @@ Use the following workflow:
         
         logger.info("Registered all prompts")
     
+    def run_http(self, host="0.0.0.0", port=None):
+        """Run with HTTP transport for containerized deployment."""
+        import os
+        port = int(os.getenv("PORT", port or 8080))
+        logger.info(f"Starting HTTP server on {host}:{port}/mcp")
+        
+        try:
+            self.mcp.run(
+                transport="http",
+                host=host,
+                port=port,
+                path="/mcp",
+                stateless_http=True
+            )
+        except Exception as e:
+            logger.error(f"HTTP server error: {e}", exc_info=True)
+            raise
+    
     def run_sync(self):
         """Run the MCP server synchronously."""
+        import os
+        transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+        
         try:
-            logger.info("Starting MCP server...")
-            
-            # FastMCP handles its own event loop for stdio transport
-            self.mcp.run()
+            if transport == "http":
+                self.run_http()
+            else:
+                logger.info("Starting MCP server with stdio transport...")
+                # FastMCP handles its own event loop for stdio transport
+                self.mcp.run()
             
         except Exception as e:
             logger.error(f"Server error: {e}", exc_info=True)

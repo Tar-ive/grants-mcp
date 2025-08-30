@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "grantsmanship-docker": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8081/mcp"
+      ],
+      "env": {
+        "SIMPLER_GRANTS_API_KEY": "T4TevWYV3suiQ8eLFbza"
+      }
+    }
+  }
+}

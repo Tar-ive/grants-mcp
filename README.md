@@ -20,10 +20,72 @@ The Grants MCP Server is a Python-based MCP implementation using FastMCP that pr
 
 - Built with FastMCP for robust MCP server implementation
 - Asynchronous Python architecture for high performance
+- **Dual Transport Support**: stdio (local) and HTTP (containerized)
+- **Docker Support**: Ready-to-deploy containerized version
 - Configurable caching with TTL and size limits
 - Retry logic and error handling for API resilience
 - Environment-based configuration management
 - Comprehensive test suite with unit, integration, and live tests
+
+## Quick Start with Docker 🐳
+
+### Prerequisites
+- Docker and Docker Compose installed
+- Simpler Grants API key (see [Obtaining API Key](#obtaining-api-key))
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Tar-ive/grants-mcp.git
+cd grants-mcp
+```
+
+### 2. Configure API Key
+Edit `docker-compose.yml` and replace the API key:
+```yaml
+environment:
+  - SIMPLER_GRANTS_API_KEY=your_actual_api_key_here
+```
+
+### 3. Build and Run
+```bash
+# Build the Docker image
+docker-compose build
+
+# Start the container
+docker-compose up -d
+
+# Check if it's running
+docker ps | grep grants-mcp
+
+# View logs
+docker logs grants-mcp-server
+```
+
+### 4. Test the Server
+```bash
+# Test with curl
+curl -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+
+# Or use the provided test script
+python scripts/test_http_local.py
+```
+
+### 5. Configure Claude Desktop
+Copy the Docker configuration to Claude Desktop:
+```bash
+# For macOS
+cp claude_desktop_configs/config_local_docker.json \
+   ~/Library/Application\ Support/Claude/claude_desktop_config.json
+
+# For Windows
+cp claude_desktop_configs/config_local_docker.json \
+   %APPDATA%\Claude\claude_desktop_config.json
+```
+
+Then restart Claude Desktop to connect to your containerized MCP server.
 
 ## Architecture
 
@@ -46,24 +108,59 @@ grants-mcp/
 │       │       ├── cache_manager.py
 │       │       └── cache_utils.py
 │       └── prompts/               # System prompts
-└── tests/                         # Comprehensive test suite
-    ├── unit/
-    ├── integration/
-    ├── contract/
-    ├── edge_cases/
-    ├── performance/
-    └── live/
+├── scripts/                       # Testing and deployment scripts
+│   ├── test_http_local.py       # Test HTTP endpoint
+│   ├── test_http_no_docker.py   # Run HTTP server locally
+│   └── debug_connection.sh      # Debug connectivity
+├── claude_desktop_configs/        # Claude Desktop configurations
+│   ├── config_local_stdio.json  # Direct Python execution
+│   ├── config_local_docker.json # Docker via mcp-remote
+│   └── config_both.json         # Both options
+├── docker-compose.yml            # Docker Compose configuration
+├── Dockerfile                    # Container definition
+└── tests/                        # Comprehensive test suite
 ```
 
-## Prerequisites
+## Deployment Options
 
-- Python 3.11 or higher
-- Node.js 16+ (for MCP client compatibility)
-- Simpler Grants API key (see below)
+### Option 1: Docker (Recommended for Production)
 
-## Getting Started
+The Docker deployment provides:
+- Consistent environment across platforms
+- Easy scaling and deployment
+- Isolation from system dependencies
+- Ready for cloud deployment (Google Cloud Run, AWS ECS, etc.)
 
-### Obtaining API Key
+```bash
+# Quick start
+docker-compose up -d
+
+# Stop the server
+docker-compose down
+
+# View logs
+docker logs grants-mcp-server --follow
+
+# Rebuild after code changes
+docker-compose build && docker-compose up -d
+```
+
+### Option 2: Local Python Installation
+
+For development and testing:
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run with stdio transport (for direct integration)
+SIMPLER_GRANTS_API_KEY=your_key python main.py
+
+# Run with HTTP transport (for testing containerization locally)
+MCP_TRANSPORT=http PORT=8080 SIMPLER_GRANTS_API_KEY=your_key python main.py
+```
+
+## Obtaining API Key
 
 The Simpler Grants API key is required for this MCP server to function. To get your API key:
 
@@ -73,157 +170,99 @@ The Simpler Grants API key is required for this MCP server to function. To get y
 4. Generate or copy your API key
 5. Keep this key secure - you'll need it for configuration
 
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/Tar-ive/grants-mcp.git
-cd grants-mcp
-```
-
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Configure environment variables:
-```bash
-cp .env.example .env
-# Edit .env and add your API_KEY for Simpler Grants API
-```
-
 ## Configuration
 
-The server uses environment variables for configuration. Create a `.env` file with:
+### Environment Variables
 
-```env
-# Required
-API_KEY=your_simpler_grants_api_key
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIMPLER_GRANTS_API_KEY` | API key for Grants.gov (required) | - |
+| `MCP_TRANSPORT` | Transport mode: `stdio` or `http` | `stdio` |
+| `PORT` | HTTP server port (container mode) | `8080` |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `CACHE_TTL` | Cache time-to-live (seconds) | `300` |
+| `MAX_CACHE_SIZE` | Maximum cache entries | `1000` |
 
-# Optional (with defaults)
-API_BASE_URL=https://api.simpler.grants.gov
-REQUEST_TIMEOUT=30
-MAX_RETRIES=3
-CACHE_TTL=3600
-MAX_CACHE_SIZE=100
-LOG_LEVEL=INFO
-SERVER_NAME=grants-analysis-server
-SERVER_VERSION=0.1.0
-```
+### Docker Configuration
 
-## Usage
+The `docker-compose.yml` file includes:
+- Port mapping: 8081 (host) → 8080 (container)
+- Resource limits: 1 CPU, 1GB RAM
+- Auto-restart policy
+- Health checks with proper SSE headers
 
-### Starting the Server
+## Available Tools
 
-Run the MCP server:
+### 1. opportunity_discovery
+Search for grant opportunities with detailed analysis.
+
+**Parameters:**
+- `query`: Search keywords (e.g., "renewable energy", "climate change")
+- `filters`: Advanced filter parameters
+- `max_results`: Maximum number of results (default: 100)
+- `page`: Page number for pagination
+- `grants_per_page`: Grants per page (default: 3)
+
+### 2. agency_landscape
+Map agencies and their funding focus areas.
+
+**Parameters:**
+- `include_opportunities`: Include opportunity analysis (default: true)
+- `focus_agencies`: Specific agency codes (e.g., ["NSF", "NIH"])
+- `funding_category`: Filter by category
+- `max_agencies`: Maximum agencies to analyze (default: 10)
+
+### 3. funding_trend_scanner
+Analyze funding trends and patterns.
+
+**Parameters:**
+- `time_window_days`: Analysis period (default: 90)
+- `category_filter`: Filter by category
+- `agency_filter`: Filter by agency
+- `min_award_amount`: Minimum award filter
+- `include_forecasted`: Include forecasted opportunities (default: true)
+
+## Claude Desktop Integration
+
+### For Docker Deployment
+1. Ensure Docker container is running: `docker-compose up -d`
+2. Install mcp-remote if needed: `npm install -g mcp-remote`
+3. Copy configuration:
+   ```bash
+   # macOS
+   cp claude_desktop_configs/config_local_docker.json \
+      ~/Library/Application\ Support/Claude/claude_desktop_config.json
+   ```
+4. Restart Claude Desktop
+
+### For Local Development
+1. Copy the stdio configuration:
+   ```bash
+   # macOS
+   cp claude_desktop_configs/config_local_stdio.json \
+      ~/Library/Application\ Support/Claude/claude_desktop_config.json
+   ```
+2. Update the path in the config to your local installation
+3. Restart Claude Desktop
+
+## Testing
+
+### Test Docker Deployment
 ```bash
-python -m src.mcp_server.server
+# Run test script
+python scripts/test_http_local.py
+
+# Debug connection issues
+bash scripts/debug_connection.sh
+
+# Manual test with curl
+curl -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
 
-### Setting up with Claude Desktop
-
-1. **Open Claude Desktop settings**:
-   - On macOS: Claude → Settings → Developer
-   - On Windows: File → Settings → Developer
-
-2. **Add the MCP server configuration**:
-   
-   Edit your Claude Desktop configuration file:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-   Add the following to the `mcpServers` section:
-   ```json
-   {
-     "mcpServers": {
-       "grants-mcp": {
-         "command": "python",
-         "args": ["-m", "src.mcp_server.server"],
-         "cwd": "/path/to/grants-mcp",
-         "env": {
-           "API_KEY": "your_simpler_grants_api_key"
-         }
-       }
-     }
-   }
-   ```
-
-3. **Restart Claude Desktop** to load the new configuration
-
-4. **Verify connection**: The server tools should appear in Claude's tool list
-
-### Setting up with Claude Code
-
-1. **Install Claude Code** if you haven't already:
-   ```bash
-   npm install -g @anthropic-ai/claude-code
-   ```
-
-2. **Configure MCP server in your project**:
-   
-   Create or update `.claude/mcp_config.json` in your project root:
-   ```json
-   {
-     "servers": {
-       "grants-mcp": {
-         "command": "python",
-         "args": ["-m", "src.mcp_server.server"],
-         "cwd": ".",
-         "env": {
-           "API_KEY": "${SIMPLER_GRANTS_API_KEY}"
-         }
-       }
-     }
-   }
-   ```
-
-3. **Set environment variable**:
-   ```bash
-   export SIMPLER_GRANTS_API_KEY=your_api_key_here
-   ```
-
-4. **Start Claude Code** in your project directory:
-   ```bash
-   claude-code
-   ```
-
-5. **The MCP tools will be automatically available** in your Claude Code session
-
-### Available Tools
-
-Once connected, the server exposes these tools:
-- `search-grants`: Search for grant opportunities
-- `analyze-funding-trends`: Analyze funding patterns  
-- `map-agency-landscape`: Explore agency grant distributions
-
-### Example Usage
-
-Once connected, you can use natural language queries like:
-- "Find grants related to artificial intelligence research"
-- "Show me climate change grants with funding over $1 million"
-- "Analyze funding trends for renewable energy projects"
-- "Map the grant landscape for the Department of Energy"
-
-## API Integration
-
-This MCP server integrates with the [Simpler Grants API](https://api.simpler.grants.gov/openapi.json), which provides:
-- Comprehensive grant opportunity data
-- Advanced search and filtering capabilities
-- Historical funding information
-- Agency and category metadata
-
-The API is currently in alpha, designed for testing and feedback.
-
-## Development
-
-### Running Tests
-
+### Run Test Suite
 ```bash
 # Run all tests
 pytest
@@ -237,63 +276,87 @@ pytest tests/integration/
 pytest tests/live/  # Requires API key
 ```
 
-### Code Quality
+## Troubleshooting
 
+### Port Conflicts
+If port 8081 is in use:
 ```bash
-# Format code
-black src/ tests/
+# Check what's using the port
+lsof -i :8081
 
-# Lint
-pylint src/
-
-# Type checking
-mypy src/
+# Edit docker-compose.yml to use a different port
+# Change "8081:8080" to "8082:8080"
 ```
 
-## Testing Strategy
+### Container Issues
+```bash
+# Check container status
+docker ps -a | grep grants-mcp
 
-The project includes comprehensive testing:
-- **Unit Tests**: Test individual components in isolation
-- **Integration Tests**: Test component interactions
-- **Contract Tests**: Validate API responses
-- **Edge Case Tests**: Handle error conditions
-- **Performance Tests**: Ensure efficiency at scale
-- **Live Tests**: Validate against real API (requires API key)
+# View detailed logs
+docker logs grants-mcp-server --tail 100
 
-## Contributing
+# Restart container
+docker-compose restart
 
+# Rebuild from scratch
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+### API Key Issues
+- Ensure `SIMPLER_GRANTS_API_KEY` is set in docker-compose.yml
+- Check logs for authentication errors: `docker logs grants-mcp-server`
+- Verify API key is valid at [Simpler Grants API](https://api.simpler.grants.gov)
+
+## Cloud Deployment
+
+The containerized version is ready for cloud deployment:
+
+### Google Cloud Run
+```bash
+# Build and push to Google Container Registry
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/grants-mcp
+
+# Deploy to Cloud Run
+gcloud run deploy grants-mcp \
+  --image gcr.io/YOUR_PROJECT/grants-mcp \
+  --platform managed \
+  --port 8080 \
+  --set-env-vars SIMPLER_GRANTS_API_KEY=your_key
+```
+
+### AWS ECS / Fargate
+See `specs/cloud_deployment.md` for detailed AWS deployment instructions.
+
+## Development
+
+### Project Structure
+- `src/mcp_server/`: Core server implementation
+- `scripts/`: Testing and utility scripts
+- `tests/`: Comprehensive test suite
+- `specs/`: Technical specifications and documentation
+- `claude_desktop_configs/`: Ready-to-use Claude Desktop configurations
+
+### Contributing
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes and add tests
 4. Ensure tests pass: `pytest`
-5. Commit with descriptive messages
-6. Push and create a pull request
-
-## Troubleshooting
-
-### Common Issues
-
-1. **API Key Error**: Ensure your `API_KEY` environment variable is set correctly
-2. **Connection Issues**: Check your internet connection and API endpoint availability
-3. **Cache Issues**: Clear cache or adjust `CACHE_TTL` if seeing stale data
-4. **Python Version**: Ensure you're using Python 3.11+
-
-### Debug Mode
-
-Enable debug logging:
-```bash
-export LOG_LEVEL=DEBUG
-python -m src.mcp_server.server
-```
+5. Build and test Docker image: `docker-compose build && docker-compose up -d`
+6. Commit with descriptive messages
+7. Push and create a pull request
 
 ## Roadmap
 
-- [ ] Advanced filtering capabilities
-- [ ] Grant deadline notifications
-- [ ] Multi-agency comparison tools
-- [ ] Grant application assistance
-- [ ] Historical success rate analysis
-- [ ] Export functionality (CSV, JSON, PDF)
+- [x] Phase 1: Python implementation with FastMCP
+- [x] Phase 2: Enhanced discovery tools
+- [x] Phase 3: Docker containerization
+- [ ] Phase 4: Intelligent scoring system
+- [ ] Phase 5: Cloud deployment automation
+- [ ] Phase 6: Multi-agency comparison tools
+- [ ] Phase 7: Grant application assistance
 
 ## License
 
@@ -307,10 +370,10 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-For issues, questions, or contributions, please:
+For issues, questions, or contributions:
 - Open an issue on [GitHub](https://github.com/Tar-ive/grants-mcp/issues)
-- Check existing issues for solutions
-- Provide detailed error messages and steps to reproduce
+- Check the [Deployment Guide](DEPLOYMENT_GUIDE.md) for detailed instructions
+- Review `specs/` directory for technical documentation
 
 ---
 
