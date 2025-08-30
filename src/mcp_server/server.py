@@ -66,14 +66,17 @@ class GrantsAnalysisServer:
         from mcp_server.tools.discovery.opportunity_discovery_tool import (
             register_opportunity_discovery_tool
         )
+        from mcp_server.tools.discovery.agency_landscape_tool import (
+            register_agency_landscape_tool
+        )
+        from mcp_server.tools.discovery.funding_trend_scanner_tool import (
+            register_funding_trend_scanner_tool
+        )
         
         # Register each tool with the server context
         register_opportunity_discovery_tool(self.mcp, self.context)
-        
-        # Future tools will be registered here:
-        # register_agency_landscape_tool(self.mcp, self.context)
-        # register_funding_trend_scanner_tool(self.mcp, self.context)
-        # etc.
+        register_agency_landscape_tool(self.mcp, self.context)
+        register_funding_trend_scanner_tool(self.mcp, self.context)
         
         logger.info("Registered all tools")
     

@@ -4,9 +4,10 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from mcp_server.models.grants_schemas import GrantsAPIResponse, OpportunityV1
-from mcp_server.tools.utils.api_client import APIError
-from mcp_server.tools.utils.cache_manager import InMemoryCache
+from src.mcp_server.models.grants_schemas import GrantsAPIResponse, OpportunityV1
+from src.mcp_server.tools.utils.api_client import APIError
+from src.mcp_server.tools.utils.cache_manager import InMemoryCache
+from src.mcp_server.tools.utils.cache_utils import CacheKeyGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -231,9 +232,9 @@ def register_opportunity_discovery_tool(mcp: Any, context: Dict[str, Any]) -> No
         try:
             start_time = time.time()
             
-            # Generate cache key
-            cache_key = cache.generate_cache_key(
-                "discovery",
+            # Generate optimized cache key
+            cache_key = CacheKeyGenerator.generate_simple(
+                "opportunity_discovery",
                 query=query,
                 filters=filters,
                 max_results=max_results

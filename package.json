@@ -1,7 +1,7 @@
 {
   "name": "grantmanship",
   "version": "0.1.0",
-  "description": "A Model Context Protocol server with Exa which does web search",
+  "description": "A Model Context Protocol server with Grantsmanship to do Grant search",
   "private": true,
   "type": "module",
   "bin": {

@@ -1,70 +1,237 @@
-# Grants Search MCP Server
+# Grants MCP Server
 
-This project is an MCP (Model Context Protocol) server that provides a tool to search for government grants based on keywords.
-
-# Video Introduction
-[![Video Introduction](./path-to-screenshot.png)](https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7276434728172339201)
+A Model Context Protocol (MCP) server for comprehensive government grants discovery and analysis, powered by the Simpler Grants API.
 
 ## Overview
 
-The Grants Search MCP Server is built using the `@modelcontextprotocol/sdk` package. It exposes a single tool called "search-grants" that allows users to search for available government grants based on a search query.
-
-The server interacts with the Simpler Grants API to fetch the grant data and formats the results for display.
-
-The MCP retrieves data from the [Simpler Grants API](https://api.simpler.grants.gov/openapi.json), which provides a comprehensive set of endpoints for accessing information about government grants. This API is currently in its alpha version, primarily intended for testing and feedback. It includes features such as searching for opportunities, retrieving agency information, and accessing detailed grant data, all structured in a user-friendly format.
-
-The API supports various filters for searching grants, including agency, applicant type, funding category, and more. It also provides pagination options to manage large sets of results effectively.
+The Grants MCP Server is a Python-based MCP implementation using FastMCP that provides intelligent tools for discovering, analyzing, and tracking government grant opportunities. It offers multiple specialized tools for different aspects of grant research, from opportunity discovery to funding trend analysis and agency landscape mapping.
 
 ## Features
 
-- Search for government grants by keyword
-- Paginate the search results
-- Display detailed information about each grant, including:
-  - Opportunity title, number, and status
-  - Funding information (award floor, award ceiling, category)
-  - Dates and deadlines
-  - Contact information
-  - Eligibility requirements
-  - Additional information URL
+### 🔍 Core Capabilities
 
-## Setup
+- **Grant Opportunity Discovery**: Search and filter grants based on keywords, agencies, funding categories, and eligibility criteria
+- **Funding Trend Analysis**: Analyze historical funding patterns and identify emerging opportunities
+- **Agency Landscape Mapping**: Understand the grant ecosystem across different government agencies
+- **Intelligent Caching**: Built-in caching system to optimize API calls and improve response times
+- **Comprehensive Grant Details**: Access detailed information including funding amounts, deadlines, eligibility requirements, and contact information
 
-1. Clone the repository and navigate to the project directory.
-2. Install the required dependencies:
-   - Node.js 16 or higher
-   - `npm install`
-3. Set the `API_KEY` environment variable with your Simpler Grants API key.
-4. Start the MCP server:
-   ```
-   npm start
-   ```
+### 🛠️ Technical Features
 
-The server will start running and listen for incoming MCP client connections.
+- Built with FastMCP for robust MCP server implementation
+- Asynchronous Python architecture for high performance
+- Configurable caching with TTL and size limits
+- Retry logic and error handling for API resilience
+- Environment-based configuration management
+- Comprehensive test suite with unit, integration, and live tests
+
+## Architecture
+
+```
+grants-mcp/
+├── src/
+│   └── mcp_server/
+│       ├── server.py              # Main server implementation
+│       ├── config/                # Configuration management
+│       │   └── settings.py
+│       ├── models/                # Data models and schemas
+│       │   └── grants_schemas.py
+│       ├── tools/
+│       │   ├── discovery/         # Grant discovery tools
+│       │   │   ├── opportunity_discovery_tool.py
+│       │   │   ├── agency_landscape_tool.py
+│       │   │   └── funding_trend_scanner_tool.py
+│       │   └── utils/             # Utility modules
+│       │       ├── api_client.py
+│       │       ├── cache_manager.py
+│       │       └── cache_utils.py
+│       └── prompts/               # System prompts
+└── tests/                         # Comprehensive test suite
+    ├── unit/
+    ├── integration/
+    ├── contract/
+    ├── edge_cases/
+    ├── performance/
+    └── live/
+```
+
+## Prerequisites
+
+- Python 3.11 or higher
+- Node.js 16+ (for MCP client compatibility)
+- Simpler Grants API key
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Tar-ive/grants-mcp.git
+cd grants-mcp
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure environment variables:
+```bash
+cp .env.example .env
+# Edit .env and add your API_KEY for Simpler Grants API
+```
+
+## Configuration
+
+The server uses environment variables for configuration. Create a `.env` file with:
+
+```env
+# Required
+API_KEY=your_simpler_grants_api_key
+
+# Optional (with defaults)
+API_BASE_URL=https://api.simpler.grants.gov
+REQUEST_TIMEOUT=30
+MAX_RETRIES=3
+CACHE_TTL=3600
+MAX_CACHE_SIZE=100
+LOG_LEVEL=INFO
+SERVER_NAME=grants-analysis-server
+SERVER_VERSION=0.1.0
+```
 
 ## Usage
 
-Once the server is running, you can connect to it using an MCP client (e.g., Claude Desktop).
+### Starting the Server
 
-To use the "search-grants" tool, simply send a request with the following parameters:
+Run the MCP server:
+```bash
+python -m src.mcp_server.server
+```
 
-- `query`: The search query (e.g., "Artificial intelligence", "Climate change")
-- `page`: The page number for pagination (default: 1)
-- `grantsPerPage`: The number of grants to display per page (default: 3)
+### Connecting with Claude Desktop
 
-The server will respond with a formatted summary of the search results, including the grant details.
+1. Configure Claude Desktop to connect to the MCP server
+2. The server will expose the following tools:
+   - `search-grants`: Search for grant opportunities
+   - `analyze-funding-trends`: Analyze funding patterns
+   - `map-agency-landscape`: Explore agency grant distributions
 
-## Customization
+### Example Usage
 
-You can customize the server by modifying the following:
+Once connected, you can use natural language queries like:
+- "Find grants related to artificial intelligence research"
+- "Show me climate change grants with funding over $1 million"
+- "Analyze funding trends for renewable energy projects"
+- "Map the grant landscape for the Department of Energy"
 
-- `formatGrantDetails`: The function that formats the grant information for display
-- `createSummary`: The function that generates the search results summary
-- `API_KEY`: The Simpler Grants API key used to authenticate the requests
+## API Integration
 
-## Troubleshooting
+This MCP server integrates with the [Simpler Grants API](https://api.simpler.grants.gov/openapi.json), which provides:
+- Comprehensive grant opportunity data
+- Advanced search and filtering capabilities
+- Historical funding information
+- Agency and category metadata
 
-If you encounter any issues, please check the server logs for more information. You can also reach out to the project maintainers for assistance.
+The API is currently in alpha, designed for testing and feedback.
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+
+# Run specific test categories
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/live/  # Requires API key
+```
+
+### Code Quality
+
+```bash
+# Format code
+black src/ tests/
+
+# Lint
+pylint src/
+
+# Type checking
+mypy src/
+```
+
+## Testing Strategy
+
+The project includes comprehensive testing:
+- **Unit Tests**: Test individual components in isolation
+- **Integration Tests**: Test component interactions
+- **Contract Tests**: Validate API responses
+- **Edge Case Tests**: Handle error conditions
+- **Performance Tests**: Ensure efficiency at scale
+- **Live Tests**: Validate against real API (requires API key)
 
 ## Contributing
 
-If you'd like to contribute to this project, please fork the repository and submit a pull request with your changes.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes and add tests
+4. Ensure tests pass: `pytest`
+5. Commit with descriptive messages
+6. Push and create a pull request
+
+## Troubleshooting
+
+### Common Issues
+
+1. **API Key Error**: Ensure your `API_KEY` environment variable is set correctly
+2. **Connection Issues**: Check your internet connection and API endpoint availability
+3. **Cache Issues**: Clear cache or adjust `CACHE_TTL` if seeing stale data
+4. **Python Version**: Ensure you're using Python 3.11+
+
+### Debug Mode
+
+Enable debug logging:
+```bash
+export LOG_LEVEL=DEBUG
+python -m src.mcp_server.server
+```
+
+## Roadmap
+
+- [ ] Advanced filtering capabilities
+- [ ] Grant deadline notifications
+- [ ] Multi-agency comparison tools
+- [ ] Grant application assistance
+- [ ] Historical success rate analysis
+- [ ] Export functionality (CSV, JSON, PDF)
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+- Built with [FastMCP](https://github.com/jlowin/fastmcp)
+- Powered by [Simpler Grants API](https://simpler.grants.gov)
+- Model Context Protocol by Anthropic
+
+## Support
+
+For issues, questions, or contributions, please:
+- Open an issue on [GitHub](https://github.com/Tar-ive/grants-mcp/issues)
+- Check existing issues for solutions
+- Provide detailed error messages and steps to reproduce
+
+---
+
+**Note**: This is an alpha release. API and features may change. Use in production with caution.

@@ -1,5 +1,50 @@
+# Node.js
 node_modules/
 build/
 *.log
-.env*__pycache__/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+.coverage
+htmlcov/
+
+# Environment
 .env
+.env.*
+
+# MCP/Claude specific
+*.claude
+.claude/
+
+# Testing
+.pytest_cache/
+*.pytest_cache
+
+# Documentation (working docs)
+/ai_docs/
+ai_docs/
+
+# Specifications
+/specs/
+specs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Coverage reports
+/htmlcov/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
