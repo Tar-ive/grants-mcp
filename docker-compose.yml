@@ -13,9 +13,9 @@ services:
       - MCP_TRANSPORT=http
       - PORT=8080
       
-      # API config - use your actual key
-      - API_KEY=YOUR_API_KEY_HERE
-      - SIMPLER_GRANTS_API_KEY=YOUR_API_KEY_HERE
+      # API config - loaded from .env file
+      - API_KEY=${API_KEY}
+      - SIMPLER_GRANTS_API_KEY=${API_KEY}
       
       # Logging
       - LOG_LEVEL=INFO
