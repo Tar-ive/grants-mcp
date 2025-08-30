@@ -89,6 +89,12 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:github-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
     --role="roles/artifactregistry.writer"
 
+# Grant service account impersonation permission
+gcloud iam service-accounts add-iam-policy-binding \
+    grants-mcp-runner@$PROJECT_ID.iam.gserviceaccount.com \
+    --member="serviceAccount:github-deployer@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountUser"
+
 # Create and download service account key
 gcloud iam service-accounts keys create ~/github-deployer-key.json \
     --iam-account=github-deployer@$PROJECT_ID.iam.gserviceaccount.com
