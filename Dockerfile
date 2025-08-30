@@ -35,6 +35,7 @@ COPY --from=builder /root/.local /home/appuser/.local
 COPY src/ ./src/
 COPY main.py .
 COPY simple_test_server.py .
+COPY minimal_mcp_test.py .
 
 # Set environment variables optimized for Cloud Run
 ENV PYTHONUNBUFFERED=1 \
@@ -56,5 +57,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/health || exit 1
 
-# Run the server
-CMD ["python", "main.py"]
+# Run the minimal MCP test to diagnose FastMCP issues
+CMD ["python", "minimal_mcp_test.py"]
