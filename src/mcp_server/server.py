@@ -62,7 +62,7 @@ class GrantsAnalysisServer:
     
     def _register_tools(self):
         """Register all available tools with the MCP server."""
-        # Import and register tools
+        # Phase 1 & 2 Discovery Tools
         from mcp_server.tools.discovery.opportunity_discovery_tool import (
             register_opportunity_discovery_tool
         )
@@ -73,12 +73,28 @@ class GrantsAnalysisServer:
             register_funding_trend_scanner_tool
         )
         
-        # Register each tool with the server context
+        # Phase 3 Analytics Tools
+        from mcp_server.tools.analytics.grant_match_scorer_tool import (
+            register_grant_match_scorer_tool
+        )
+        from mcp_server.tools.analytics.hidden_opportunity_finder_tool import (
+            register_hidden_opportunity_finder_tool
+        )
+        from mcp_server.tools.analytics.strategic_application_planner_tool import (
+            register_strategic_application_planner_tool
+        )
+        
+        # Register Phase 1 & 2 tools
         register_opportunity_discovery_tool(self.mcp, self.context)
         register_agency_landscape_tool(self.mcp, self.context)
         register_funding_trend_scanner_tool(self.mcp, self.context)
         
-        logger.info("Registered all tools")
+        # Register Phase 3 analytics tools
+        register_grant_match_scorer_tool(self.mcp, self.context)
+        register_hidden_opportunity_finder_tool(self.mcp, self.context)
+        register_strategic_application_planner_tool(self.mcp, self.context)
+        
+        logger.info("Registered all tools (Phase 1-3 complete)")
     
     def _register_resources(self):
         """Register all available resources with the MCP server."""

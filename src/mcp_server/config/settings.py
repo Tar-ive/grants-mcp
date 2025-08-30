@@ -22,7 +22,7 @@ class Settings:
     
     # Server Configuration
     server_name: str = "grantsmanship-mcp"
-    server_version: str = "2.0.0"
+    server_version: str = "3.0.0"
     server_description: str = "Comprehensive grants analysis and discovery platform"
     
     # Logging Configuration
