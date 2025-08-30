@@ -19,7 +19,7 @@ from src.mcp_server.tools.discovery.funding_trend_scanner_tool import (
 
 async def test_funding_trend_scanner():
     """Test the fixed funding trend scanner."""
-    api_key = "T4TevWYV3suiQ8eLFbza"
+    api_key = "YOUR_API_KEY_HERE"  # Replace with actual API key
     
     print("Testing Funding Trend Scanner Fix")
     print("=" * 40)
