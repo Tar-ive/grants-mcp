@@ -39,7 +39,6 @@ COPY main.py .
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     MCP_TRANSPORT=http \
-    PORT=8080 \
     LOG_LEVEL=INFO \
     PATH=/home/appuser/.local/bin:$PATH
 

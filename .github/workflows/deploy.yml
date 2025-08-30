@@ -71,7 +71,6 @@ jobs:
             --region ${{ env.REGION }} \
             --port 8080 \
             --set-env-vars MCP_TRANSPORT=http \
-            --set-env-vars PORT=8080 \
             --set-env-vars SIMPLER_GRANTS_API_KEY=${{ secrets.SIMPLER_GRANTS_API_KEY }} \
             --set-env-vars LOG_LEVEL=INFO \
             --set-env-vars PYTHONUNBUFFERED=1 \
