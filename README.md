@@ -59,9 +59,21 @@ grants-mcp/
 
 - Python 3.11 or higher
 - Node.js 16+ (for MCP client compatibility)
-- Simpler Grants API key
+- Simpler Grants API key (see below)
 
-## Installation
+## Getting Started
+
+### Obtaining API Key
+
+The Simpler Grants API key is required for this MCP server to function. To get your API key:
+
+1. Visit [Simpler Grants API](https://api.simpler.grants.gov)
+2. Sign up for an account or log in
+3. Navigate to your API settings/dashboard
+4. Generate or copy your API key
+5. Keep this key secure - you'll need it for configuration
+
+### Installation
 
 1. Clone the repository:
 ```bash
@@ -114,13 +126,81 @@ Run the MCP server:
 python -m src.mcp_server.server
 ```
 
-### Connecting with Claude Desktop
+### Setting up with Claude Desktop
 
-1. Configure Claude Desktop to connect to the MCP server
-2. The server will expose the following tools:
-   - `search-grants`: Search for grant opportunities
-   - `analyze-funding-trends`: Analyze funding patterns
-   - `map-agency-landscape`: Explore agency grant distributions
+1. **Open Claude Desktop settings**:
+   - On macOS: Claude → Settings → Developer
+   - On Windows: File → Settings → Developer
+
+2. **Add the MCP server configuration**:
+   
+   Edit your Claude Desktop configuration file:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   Add the following to the `mcpServers` section:
+   ```json
+   {
+     "mcpServers": {
+       "grants-mcp": {
+         "command": "python",
+         "args": ["-m", "src.mcp_server.server"],
+         "cwd": "/path/to/grants-mcp",
+         "env": {
+           "API_KEY": "your_simpler_grants_api_key"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop** to load the new configuration
+
+4. **Verify connection**: The server tools should appear in Claude's tool list
+
+### Setting up with Claude Code
+
+1. **Install Claude Code** if you haven't already:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   ```
+
+2. **Configure MCP server in your project**:
+   
+   Create or update `.claude/mcp_config.json` in your project root:
+   ```json
+   {
+     "servers": {
+       "grants-mcp": {
+         "command": "python",
+         "args": ["-m", "src.mcp_server.server"],
+         "cwd": ".",
+         "env": {
+           "API_KEY": "${SIMPLER_GRANTS_API_KEY}"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Set environment variable**:
+   ```bash
+   export SIMPLER_GRANTS_API_KEY=your_api_key_here
+   ```
+
+4. **Start Claude Code** in your project directory:
+   ```bash
+   claude-code
+   ```
+
+5. **The MCP tools will be automatically available** in your Claude Code session
+
+### Available Tools
+
+Once connected, the server exposes these tools:
+- `search-grants`: Search for grant opportunities
+- `analyze-funding-trends`: Analyze funding patterns  
+- `map-agency-landscape`: Explore agency grant distributions
 
 ### Example Usage
 
