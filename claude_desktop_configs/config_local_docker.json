@@ -7,7 +7,7 @@
         "http://localhost:8081/mcp"
       ],
       "env": {
-        "SIMPLER_GRANTS_API_KEY": "T4TevWYV3suiQ8eLFbza"
+        "SIMPLER_GRANTS_API_KEY": "YOUR_API_KEY_HERE"
       }
     }
   }

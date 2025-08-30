@@ -14,8 +14,8 @@ print("=" * 50)
 env = os.environ.copy()
 env["MCP_TRANSPORT"] = "http"
 env["PORT"] = "8080"
-env["API_KEY"] = "T4TevWYV3suiQ8eLFbza"
-env["SIMPLER_GRANTS_API_KEY"] = "T4TevWYV3suiQ8eLFbza"
+env["API_KEY"] = "YOUR_API_KEY_HERE"
+env["SIMPLER_GRANTS_API_KEY"] = "YOUR_API_KEY_HERE"
 env["PYTHONUNBUFFERED"] = "1"
 
 # Start the server

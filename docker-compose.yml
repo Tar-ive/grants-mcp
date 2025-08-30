@@ -14,8 +14,8 @@ services:
       - PORT=8080
       
       # API config - use your actual key
-      - API_KEY=T4TevWYV3suiQ8eLFbza
-      - SIMPLER_GRANTS_API_KEY=T4TevWYV3suiQ8eLFbza
+      - API_KEY=YOUR_API_KEY_HERE
+      - SIMPLER_GRANTS_API_KEY=YOUR_API_KEY_HERE
       
       # Logging
       - LOG_LEVEL=INFO

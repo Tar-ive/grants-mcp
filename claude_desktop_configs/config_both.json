@@ -4,7 +4,7 @@
       "command": "python3",
       "args": ["/Users/tarive/Desktop/grants-data-analysis/grants-mcp/main.py"],
       "env": {
-        "SIMPLER_GRANTS_API_KEY": "T4TevWYV3suiQ8eLFbza",
+        "SIMPLER_GRANTS_API_KEY": "YOUR_API_KEY_HERE",
         "MCP_TRANSPORT": "stdio"
       }
     },
@@ -15,7 +15,7 @@
         "http://localhost:8081/mcp"
       ],
       "env": {
-        "SIMPLER_GRANTS_API_KEY": "T4TevWYV3suiQ8eLFbza"
+        "SIMPLER_GRANTS_API_KEY": "YOUR_API_KEY_HERE"
       }
     }
   }
