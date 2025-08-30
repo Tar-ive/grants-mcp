@@ -37,6 +37,7 @@ COPY main.py .
 COPY simple_test_server.py .
 COPY minimal_mcp_test.py .
 COPY import_test.py .
+COPY mcp_server_fixed.py .
 
 # Set environment variables optimized for Cloud Run
 ENV PYTHONUNBUFFERED=1 \
@@ -58,5 +59,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f -H "Accept: application/json, text/event-stream" http://localhost:8080/health || exit 1
 
-# Run import test to diagnose dependency issues
-CMD ["python", "import_test.py"]
+# Run the fixed MCP server
+CMD ["python", "mcp_server_fixed.py"]
