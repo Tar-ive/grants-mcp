@@ -167,8 +167,28 @@ Use the following workflow:
     def run_http(self, host="0.0.0.0", port=None):
         """Run with HTTP transport for containerized deployment."""
         import os
+        from datetime import datetime, timezone
+        
         port = int(os.getenv("PORT", port or 8080))
         logger.info(f"Starting HTTP server on {host}:{port}/mcp")
+        
+        # Add health check endpoint
+        @self.mcp.get("/health")
+        async def health_check():
+            """Health check endpoint for Cloud Run."""
+            return {
+                "status": "healthy",
+                "service": "grants-mcp",
+                "version": self.settings.server_version,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "transport": "http",
+                "cache_stats": {
+                    "hits": self.cache.hits,
+                    "misses": self.cache.misses,
+                    "size": len(self.cache._cache) if hasattr(self.cache, '_cache') else 0
+                },
+                "tools_registered": len(self.context.get("tools", {}))
+            }
         
         try:
             self.mcp.run(
