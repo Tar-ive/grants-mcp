@@ -389,4 +389,6 @@ For issues, questions, or contributions:
 
 ---
 
-**Note**: This is an alpha release. API and features may change. Use in production with caution.
+**Note**: This is an alpha release. API and features may change. Use in production with caution.# Deployment Test
+
+Service accounts and permissions are now properly configured!
