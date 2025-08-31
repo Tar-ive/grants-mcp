@@ -283,11 +283,8 @@ class MCPServer:
         
         try:
             if method == "initialize":
-                if self.initialized:
-                    # Already initialized
-                    result = {"capabilities": self.client_capabilities}
-                else:
-                    result = self.handle_initialize(params)
+                # Always return full initialization response
+                result = self.handle_initialize(params)
                 
                 return {
                     "jsonrpc": "2.0",
