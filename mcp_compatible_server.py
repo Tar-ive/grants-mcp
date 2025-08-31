@@ -4,6 +4,7 @@ MCP-compatible server for Cloud Run deployment.
 Implements the MCP protocol without relying on FastMCP's built-in HTTP server.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -48,11 +49,46 @@ class MCPServer:
             max_retries=settings.max_retries
         )
         
+        # Create server context for real tool functions
+        self.context = {
+            "cache": self.cache,
+            "api_client": self.api_client,
+            "search_history": [],
+            "settings": settings
+        }
+        
         # MCP protocol state
         self.initialized = False
         self.client_capabilities = {}
         
         logger.info("🚀 MCP Server initialized successfully")
+    
+    def run_async(self, coro):
+        """Helper to run async functions synchronously."""
+        try:
+            # Try to get existing loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're in an async context, create a new thread
+                import concurrent.futures
+                import threading
+                
+                def run_in_thread():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(coro)
+                    finally:
+                        new_loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_in_thread)
+                    return future.result(timeout=30)  # 30 second timeout
+            else:
+                return loop.run_until_complete(coro)
+        except RuntimeError:
+            # No loop exists, create one
+            return asyncio.run(coro)
     
     def handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP initialize request."""
@@ -188,90 +224,159 @@ class MCPServer:
     
     def _call_opportunity_discovery(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Call the opportunity discovery tool."""
-        query = args.get("query", "")
-        max_results = args.get("max_results", 10)
-        
-        # For now, return a mock response since we need async handling for the real API
-        result = {
-            "query": query,
-            "max_results": max_results,
-            "status": "success",
-            "message": f"Found grants related to '{query}' (Note: This is a demonstration response. Full implementation requires async API integration.)",
-            "grants_found": 5,
-            "sample_grants": [
-                {
-                    "title": "Environmental Research Grant Program",
-                    "agency": "EPA",
-                    "funding_amount": "$500,000",
-                    "deadline": "2024-12-31"
-                },
-                {
-                    "title": "Clean Energy Innovation Initiative", 
-                    "agency": "DOE",
-                    "funding_amount": "$2,000,000",
-                    "deadline": "2024-11-15"
-                }
-            ]
-        }
-        
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"# Grant Opportunity Discovery Results\n\n**Query**: {query}\n**Results**: {json.dumps(result, indent=2)}"
-                }
-            ]
-        }
+        try:
+            # Import the real tool function
+            from mcp_server.tools.discovery.opportunity_discovery_tool import register_opportunity_discovery_tool
+            
+            # Create a mock FastMCP object to capture the registered function
+            class MockMCP:
+                def __init__(self):
+                    self.tool_func = None
+                
+                def tool(self, func):
+                    self.tool_func = func
+                    return func
+            
+            # Register the tool and capture the function
+            mock_mcp = MockMCP()
+            register_opportunity_discovery_tool(mock_mcp, self.context)
+            
+            # Extract parameters
+            query = args.get("query")
+            max_results = args.get("max_results", 10)
+            filters = args.get("filters", {})
+            page = 1
+            grants_per_page = max_results
+            
+            # Call the real async function
+            result = self.run_async(mock_mcp.tool_func(
+                query=query,
+                filters=filters,
+                max_results=max_results,
+                page=page,
+                grants_per_page=grants_per_page
+            ))
+            
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": result
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in opportunity discovery: {e}")
+            # Fallback to demo data if API fails
+            return {
+                "content": [
+                    {
+                        "type": "text", 
+                        "text": f"# Grant Opportunity Discovery\n\n**Query**: {args.get('query', '')}\n\n**Error**: {str(e)}\n\nFallback: Please check API key configuration or try again later."
+                    }
+                ]
+            }
     
     def _call_agency_landscape(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Call the agency landscape tool."""
-        include_opportunities = args.get("include_opportunities", True)
-        
-        result = {
-            "analysis_type": "agency_landscape",
-            "include_opportunities": include_opportunities,
-            "agencies_analyzed": [
-                {"agency": "NSF", "funding_focus": "Research & Education", "active_programs": 45},
-                {"agency": "NIH", "funding_focus": "Health Research", "active_programs": 78},
-                {"agency": "DOE", "funding_focus": "Energy & Environment", "active_programs": 32}
-            ],
-            "message": "Agency landscape analysis complete (demonstration data)"
-        }
-        
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"# Agency Landscape Analysis\n\n{json.dumps(result, indent=2)}"
-                }
-            ]
-        }
+        try:
+            # Import the real tool function
+            from mcp_server.tools.discovery.agency_landscape_tool import register_agency_landscape_tool
+            
+            # Create a mock FastMCP object to capture the registered function
+            class MockMCP:
+                def __init__(self):
+                    self.tool_func = None
+                
+                def tool(self, func):
+                    self.tool_func = func
+                    return func
+            
+            # Register the tool and capture the function
+            mock_mcp = MockMCP()
+            register_agency_landscape_tool(mock_mcp, self.context)
+            
+            # Extract parameters
+            include_opportunities = args.get("include_opportunities", True)
+            focus_agencies = args.get("focus_agencies", [])
+            
+            # Call the real async function
+            result = self.run_async(mock_mcp.tool_func(
+                include_opportunities=include_opportunities,
+                focus_agencies=focus_agencies
+            ))
+            
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": result
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in agency landscape: {e}")
+            # Fallback to demo data if API fails
+            return {
+                "content": [
+                    {
+                        "type": "text", 
+                        "text": f"# Agency Landscape Analysis\n\n**Error**: {str(e)}\n\nFallback: Please check API key configuration or try again later."
+                    }
+                ]
+            }
     
     def _call_funding_trend_scanner(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Call the funding trend scanner tool."""
-        time_window_days = args.get("time_window_days", 90)
-        category_filter = args.get("category_filter")
-        
-        result = {
-            "analysis_type": "funding_trends",
-            "time_window_days": time_window_days,
-            "category_filter": category_filter,
-            "trends": [
-                {"category": "Climate Research", "trend": "+15%", "total_funding": "$45M"},
-                {"category": "AI/ML Research", "trend": "+28%", "total_funding": "$67M"},
-                {"category": "Healthcare", "trend": "+8%", "total_funding": "$123M"}
-            ],
-            "message": "Funding trend analysis complete (demonstration data)"
-        }
-        
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"# Funding Trend Analysis\n\n{json.dumps(result, indent=2)}"
-                }
-            ]
-        }
+        try:
+            # Import the real tool function
+            from mcp_server.tools.discovery.funding_trend_scanner_tool import register_funding_trend_scanner_tool
+            
+            # Create a mock FastMCP object to capture the registered function
+            class MockMCP:
+                def __init__(self):
+                    self.tool_func = None
+                
+                def tool(self, func):
+                    self.tool_func = func
+                    return func
+            
+            # Register the tool and capture the function
+            mock_mcp = MockMCP()
+            register_funding_trend_scanner_tool(mock_mcp, self.context)
+            
+            # Extract parameters
+            time_window_days = args.get("time_window_days", 90)
+            category_filter = args.get("category_filter")
+            
+            # Call the real async function
+            result = self.run_async(mock_mcp.tool_func(
+                time_window_days=time_window_days,
+                category_filter=category_filter
+            ))
+            
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": result
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in funding trend scanner: {e}")
+            # Fallback to demo data if API fails
+            return {
+                "content": [
+                    {
+                        "type": "text", 
+                        "text": f"# Funding Trend Analysis\n\n**Error**: {str(e)}\n\nFallback: Please check API key configuration or try again later."
+                    }
+                ]
+            }
     
     def handle_json_rpc(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle JSON-RPC request and return response."""
